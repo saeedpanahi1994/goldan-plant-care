@@ -59,8 +59,8 @@ jobs:
 
     - name: Build Debug APK
       run: |
-        chmod +x ./build_apk.sh
-        ./build_apk.sh
+        chmod +x ./build_apk_fresh.sh
+        ./build_apk_fresh.sh
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
