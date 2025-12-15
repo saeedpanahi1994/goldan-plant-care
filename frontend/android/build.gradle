@@ -32,6 +32,13 @@ allprojects {
             force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
         }
     }
+    
+    subprojects {
+        tasks.withType(JavaCompile) {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+        }
+    }
 }
 
 task clean(type: Delete) {
