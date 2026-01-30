@@ -26,13 +26,13 @@ const DiagnosisScreen: React.FC = () => {
   const navigate = useNavigate();
 
   const handlePlantIdClick = () => {
-    // Navigate to plant id feature
-    console.log('Plant ID clicked');
+    // Navigate to plant identify screen
+    navigate('/identify');
   };
 
   const handleDiseaseClick = () => {
-    // Navigate to disease detection
-    console.log('Disease detection clicked');
+    // Navigate to disease detection (همان صفحه شناسایی)
+    navigate('/identify');
   };
 
   const handleLightClick = () => {

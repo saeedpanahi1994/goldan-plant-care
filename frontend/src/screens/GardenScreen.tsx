@@ -1,9 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { Plus, Droplets } from 'lucide-react';
+import { Plus, Leaf } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import moment from 'moment-jalaali';
+import axios from 'axios';
 import PlantCard from '../components/PlantCard';
 import ReminderModal from '../components/ReminderModal';
+import ConfirmModal from '../components/ConfirmModal';
+import Header from '../components/Header';
+
+const API_URL = 'http://130.185.76.46:4380/api';
+
+// Configure moment-jalaali
+moment.loadPersian({ dialect: 'persian-modern', usePersianDigits: true });
+
+const toPersianDigits = (num: number): string => {
+  const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+  return num.toString().split('').map(digit => persianDigits[parseInt(digit)] || digit).join('');
+};
 
 const ScreenContainer = styled.div`
   min-height: 100vh;
@@ -25,7 +39,7 @@ const ScreenContainer = styled.div`
 
 const HeaderSection = styled.div`
   background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 50%, #43A047 100%);
-  padding: 24px 20px;
+  padding: 16px 20px;
   border-radius: 0 0 32px 32px;
   box-shadow: 
     0 8px 24px rgba(76, 175, 80, 0.2),
@@ -59,62 +73,17 @@ const HeaderSection = styled.div`
 const HeaderContent = styled.div`
   position: relative;
   z-index: 1;
+  text-align: center;
 `;
 
 const PageTitle = styled.h1`
   font-family: 'Vazirmatn', sans-serif;
-  font-size: 20px;
-  font-weight: 800;
-  color: #ffffff;
-  margin: 0 0 10px 0;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  letter-spacing: -0.5px;
-`;
-
-const SubTitle = styled.p`
-  font-family: 'Vazirmatn', sans-serif;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.95);
-  margin: 0;
-  font-weight: 500;
-`;
-
-const StatsContainer = styled.div`
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
-`;
-
-const StatCard = styled.div`
-  flex: 1;
-  background: rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
-  border-radius: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.1),
-    inset 0 1px 2px rgba(255, 255, 255, 0.3);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-`;
-
-const StatValue = styled.div`
-  font-family: 'Vazirmatn', sans-serif;
   font-size: 18px;
   font-weight: 800;
   color: #ffffff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-`;
-
-const StatLabel = styled.div`
-  font-family: 'Vazirmatn', sans-serif;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 600;
+  margin: 0;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  letter-spacing: -0.5px;
 `;
 
 const ContentSection = styled.div`
@@ -142,30 +111,34 @@ const SectionTitle = styled.h2`
   background-clip: text;
 `;
 
-const AddButton = styled.button`
+const FloatingAddButton = styled.button`
+  position: fixed;
+  bottom: 120px;
+  left: 20px;
   background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
   border: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 
-    0 4px 12px rgba(76, 175, 80, 0.3),
+    0 8px 24px rgba(76, 175, 80, 0.3),
     inset 0 1px 2px rgba(255, 255, 255, 0.3);
+  z-index: 1000;
 
   &:hover {
-    transform: scale(1.08);
+    transform: scale(1.1);
     box-shadow: 
-      0 6px 16px rgba(76, 175, 80, 0.4),
+      0 12px 32px rgba(76, 175, 80, 0.4),
       inset 0 1px 2px rgba(255, 255, 255, 0.4);
   }
 
   &:active {
-    transform: scale(0.98);
+    transform: scale(0.95);
   }
 
   svg {
@@ -261,30 +234,76 @@ interface Plant {
   hasReminder?: boolean;
   reminderDate?: string;
   reminderText?: string;
+  daysUntilWatering?: number;
+  defaultWateringInterval?: number;
+  defaultFertilizerInterval?: number;
 }
+
+interface UserPlant {
+  id: number;
+  plant_name_fa: string;
+  plant_scientific_name: string;
+  plant_image: string;
+  nickname: string | null;
+  next_watering_at: string;
+  health_status: string;
+  effective_watering_interval: number;
+  default_watering_interval: number;
+  default_fertilizer_interval: number;
+  custom_watering_interval: number | null;
+  custom_fertilizer_interval: number | null;
+}
+
+const LoadingContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 20px;
+  gap: 16px;
+`;
+
+const Spinner = styled.div`
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(76, 175, 80, 0.1);
+  border-top-color: #4CAF50;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+`;
+
+const LoadingText = styled.p`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  color: #4CAF50;
+  font-weight: 600;
+`;
 
 const GardenScreen: React.FC = () => {
   const navigate = useNavigate();
-  const [plants, setPlants] = useState<Plant[]>([
-    {
-      id: '1',
-      name: 'فیکوس لیراتا',
-      scientificName: 'Ficus lyrata',
-      image: 'https://images.unsplash.com/photo-1545241047-6083a3684587?w=400&h=400&fit=crop',
-      hasReminder: false,
-    },
-    {
-      id: '2',
-      name: 'گیاه هوازی تیلاندسیا',
-      scientificName: 'Tillandsia',
-      image: 'https://images.unsplash.com/photo-1509937528035-ad76254b0356?w=400&h=400&fit=crop',
-      hasReminder: true,
-      reminderText: 'یادآور آبیاری',
-      reminderDate: '1404/09/18 - هر 1 روز یکبار',
-    },
-  ]);
+  const [plants, setPlants] = useState<Plant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingPlant, setDeletingPlant] = useState(false);
 
-  const [modalState, setModalState] = useState<{
+  const [reminderModalState, setReminderModalState] = useState<{
+    isOpen: boolean;
+    plantId: string | null;
+    plantName: string;
+    defaultWateringInterval: number;
+    defaultFertilizerInterval: number;
+  }>({
+    isOpen: false,
+    plantId: null,
+    plantName: '',
+    defaultWateringInterval: 7,
+    defaultFertilizerInterval: 30,
+  });
+
+  const [deleteModalState, setDeleteModalState] = useState<{
     isOpen: boolean;
     plantId: string | null;
     plantName: string;
@@ -294,14 +313,136 @@ const GardenScreen: React.FC = () => {
     plantName: '',
   });
 
+  // دریافت گیاهان کاربر از سرور
+  const fetchUserPlants = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        setPlants([]);
+        return;
+      }
+
+      const response = await axios.get(`${API_URL}/plants`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        const userPlants: UserPlant[] = response.data.plants;
+        
+        // تبدیل داده‌های سرور به فرمت مورد نیاز کامپوننت
+        const formattedPlants: Plant[] = userPlants.map((plant) => {
+          const nextWatering = new Date(plant.next_watering_at);
+          const now = new Date();
+          const daysUntilWatering = Math.ceil((nextWatering.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          
+          return {
+            id: plant.id.toString(),
+            name: plant.nickname || plant.plant_name_fa,
+            scientificName: plant.plant_scientific_name || '',
+            image: plant.plant_image || 'https://via.placeholder.com/400x400?text=گیاه',
+            hasReminder: daysUntilWatering <= 2,
+            reminderText: daysUntilWatering <= 0 
+              ? 'نیاز به آبیاری فوری' 
+              : daysUntilWatering <= 2 
+                ? 'یادآور آبیاری' 
+                : undefined,
+            reminderDate: daysUntilWatering <= 2 
+              ? `${toPersianDigits(Math.max(0, daysUntilWatering))} روز تا آبیاری` 
+              : undefined,
+            daysUntilWatering,
+            defaultWateringInterval: plant.effective_watering_interval || plant.default_watering_interval || 7,
+            defaultFertilizerInterval: plant.default_fertilizer_interval || 30,
+          };
+        });
+
+        setPlants(formattedPlants);
+      }
+    } catch (error) {
+      console.error('خطا در دریافت گیاهان:', error);
+      setPlants([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUserPlants();
+  }, [fetchUserPlants]);
+
   const handleAddPlant = () => {
-    console.log('Add plant clicked');
+    navigate('/plant-bank');
   };
 
   const handleReminderClick = (plantId: string) => {
     const plant = plants.find(p => p.id === plantId);
     if (plant) {
-      setModalState({
+      setReminderModalState({
+        isOpen: true,
+        plantId: plantId,
+        plantName: plant.name,
+        defaultWateringInterval: plant.defaultWateringInterval || 7,
+        defaultFertilizerInterval: plant.defaultFertilizerInterval || 30,
+      });
+    }
+  };
+
+  const handleSaveReminder = async (
+    reminderType: 'watering' | 'fertilizing', 
+    intervalDays: number, 
+    fertilizerType?: string
+  ) => {
+    if (!reminderModalState.plantId) return;
+
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      alert('لطفاً ابتدا وارد شوید');
+      return;
+    }
+
+    try {
+      const response = await axios.put(
+        `${API_URL}/plants/${reminderModalState.plantId}/reminder`,
+        {
+          reminder_type: reminderType,
+          interval_days: intervalDays,
+          fertilizer_type: fertilizerType
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success) {
+        await fetchUserPlants();
+        
+        const message = reminderType === 'watering' 
+          ? `یادآور آبیاری هر ${intervalDays} روز تنظیم شد`
+          : `یادآور کوددهی با ${fertilizerType} هر ${intervalDays} روز تنظیم شد`;
+        
+        alert(message);
+      }
+    } catch (error) {
+      console.error('خطا در ذخیره یادآور:', error);
+      alert('خطا در ذخیره یادآور. لطفاً دوباره تلاش کنید.');
+    }
+  };
+
+  const handleCloseReminderModal = () => {
+    setReminderModalState({
+      isOpen: false,
+      plantId: null,
+      plantName: '',
+      defaultWateringInterval: 7,
+      defaultFertilizerInterval: 30,
+    });
+  };
+
+  const handleDeleteClick = (plantId: string) => {
+    const plant = plants.find(p => p.id === plantId);
+    if (plant) {
+      setDeleteModalState({
         isOpen: true,
         plantId: plantId,
         plantName: plant.name,
@@ -309,33 +450,81 @@ const GardenScreen: React.FC = () => {
     }
   };
 
-  const handleSaveReminder = (reminderType: 'watering' | 'fertilizing', interval: string, fertilizerType?: string) => {
-    if (modalState.plantId) {
-      const reminderText = reminderType === 'watering' 
-        ? 'یادآور آبیاری' 
-        : `یادآور کودهی (${fertilizerType})`;
+  const handleConfirmDelete = async () => {
+    if (!deleteModalState.plantId) return;
+
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      alert('لطفاً ابتدا وارد شوید');
+      return;
+    }
+
+    try {
+      setDeletingPlant(true);
       
-      setPlants(prevPlants =>
-        prevPlants.map(plant =>
-          plant.id === modalState.plantId
-            ? {
-                ...plant,
-                hasReminder: true,
-                reminderText: reminderText,
-                reminderDate: `۱۴۰۴/۰۹/۱۸ - ${interval}`,
-              }
-            : plant
-        )
+      const response = await axios.delete(
+        `${API_URL}/plants/${deleteModalState.plantId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
       );
+
+      if (response.data.success) {
+        await fetchUserPlants();
+        
+        setDeleteModalState({
+          isOpen: false,
+          plantId: null,
+          plantName: '',
+        });
+        
+        alert('گیاه با موفقیت از باغچه حذف شد');
+      }
+    } catch (error) {
+      console.error('خطا در حذف گیاه:', error);
+      alert('خطا در حذف گیاه. لطفاً دوباره تلاش کنید.');
+    } finally {
+      setDeletingPlant(false);
     }
   };
 
-  const handleCloseModal = () => {
-    setModalState({
-      isOpen: false,
-      plantId: null,
-      plantName: '',
-    });
+  const handleCloseDeleteModal = () => {
+    if (!deletingPlant) {
+      setDeleteModalState({
+        isOpen: false,
+        plantId: null,
+        plantName: '',
+      });
+    }
+  };
+
+  // ثبت آبیاری گیاه
+  const handleWateringConfirm = async (plantId: string) => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      alert('لطفاً ابتدا وارد شوید');
+      return;
+    }
+
+    try {
+      const response = await axios.post(
+        `${API_URL}/plants/${plantId}/water`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success) {
+        await fetchUserPlants();
+        // نمایش پیام موفقیت
+        const plant = plants.find(p => p.id === plantId);
+        alert(`آبیاری ${plant?.name || 'گیاه'} با موفقیت ثبت شد`);
+      }
+    } catch (error) {
+      console.error('خطا در ثبت آبیاری:', error);
+      alert('خطا در ثبت آبیاری. لطفاً دوباره تلاش کنید.');
+    }
   };
 
   const handlePlantClick = (plantId: string) => {
@@ -344,31 +533,24 @@ const GardenScreen: React.FC = () => {
 
   return (
     <ScreenContainer>
+      <Header title="باغچه ی من" showNotificationBadge={plants.some(p => p.hasReminder)} />
+      
       <HeaderSection>
         <HeaderContent>
-          <PageTitle>باغچه ی من</PageTitle>
-          <SubTitle>مجموعه گیاهان شما</SubTitle>
-          <StatsContainer>
-            <StatCard>
-              <StatValue>{toPersianDigits(plants.length)}</StatValue>
-              <StatLabel>گیاه</StatLabel>
-            </StatCard>
-            <StatCard>
-              <StatValue>{toPersianDigits(plants.filter(p => p.hasReminder).length)}</StatValue>
-              <StatLabel>یادآور فعال</StatLabel>
-            </StatCard>
-          </StatsContainer>
+          <PageTitle>{moment().locale('fa').format('dddd، jD jMMMM jYYYY')}</PageTitle>
         </HeaderContent>
       </HeaderSection>
 
       <ContentSection>
-        {plants.length > 0 ? (
+        {loading ? (
+          <LoadingContainer>
+            <Spinner />
+            <LoadingText>در حال بارگذاری باغچه شما...</LoadingText>
+          </LoadingContainer>
+        ) : plants.length > 0 ? (
           <>
             <SectionHeader>
-              <SectionTitle>گیاهان من</SectionTitle>
-              <AddButton onClick={handleAddPlant}>
-                <Plus size={22} />
-              </AddButton>
+              <SectionTitle>گیاهان من ({toPersianDigits(plants.length)})</SectionTitle>
             </SectionHeader>
             <PlantsList>
               {plants.map((plant) => (
@@ -379,10 +561,12 @@ const GardenScreen: React.FC = () => {
                   scientificName={plant.scientificName}
                   image={plant.image}
                   hasReminder={plant.hasReminder}
-                  reminderDate={plant.reminderDate}
-                  reminderText={plant.reminderText}
+                  daysUntilWatering={plant.daysUntilWatering}
+                  showDeleteButton={true}
                   onReminderClick={() => handleReminderClick(plant.id)}
                   onCardClick={() => handlePlantClick(plant.id)}
+                  onDeleteClick={() => handleDeleteClick(plant.id)}
+                  onWateringConfirm={() => handleWateringConfirm(plant.id)}
                 />
               ))}
             </PlantsList>
@@ -390,7 +574,7 @@ const GardenScreen: React.FC = () => {
         ) : (
           <EmptyState>
             <EmptyIcon>
-              <Droplets size={48} />
+              <Leaf size={48} />
             </EmptyIcon>
             <EmptyTitle>باغچه شما خالی است</EmptyTitle>
             <EmptyText>
@@ -403,20 +587,33 @@ const GardenScreen: React.FC = () => {
           </EmptyState>
         )}
       </ContentSection>
+      
+      <FloatingAddButton onClick={handleAddPlant}>
+        <Plus size={24} />
+      </FloatingAddButton>
 
       <ReminderModal
-        isOpen={modalState.isOpen}
-        onClose={handleCloseModal}
-        plantName={modalState.plantName}
+        isOpen={reminderModalState.isOpen}
+        onClose={handleCloseReminderModal}
+        plantName={reminderModalState.plantName}
+        defaultWateringInterval={reminderModalState.defaultWateringInterval}
+        defaultFertilizerInterval={reminderModalState.defaultFertilizerInterval}
         onSave={handleSaveReminder}
+      />
+
+      <ConfirmModal
+        isOpen={deleteModalState.isOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="حذف گیاه از باغچه"
+        message={`آیا مطمئن هستید که می‌خواهید "${deleteModalState.plantName}" را از باغچه خود حذف کنید؟`}
+        confirmText="بله، حذف شود"
+        cancelText="انصراف"
+        isDestructive={true}
+        loading={deletingPlant}
       />
     </ScreenContainer>
   );
-};
-
-const toPersianDigits = (num: number): string => {
-  const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
-  return num.toString().split('').map(digit => persianDigits[parseInt(digit)] || digit).join('');
 };
 
 export default GardenScreen;

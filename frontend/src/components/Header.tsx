@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { User, Bell, ShoppingCart } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const HeaderContainer = styled.header`
   display: flex;
@@ -110,12 +111,14 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ title, showNotificationBadge }) => {
+  const navigate = useNavigate();
+
   return (
     <HeaderContainer>
       <Title>{title}</Title>
       
       <HeaderActions>
-        <ActionButton>
+        <ActionButton onClick={() => navigate('/profile')}>
           <User size={18} />
         </ActionButton>
         <ActionButton>

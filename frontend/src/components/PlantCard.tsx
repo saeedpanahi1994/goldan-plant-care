@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Bell } from 'lucide-react';
+import { Bell, Trash2, Droplets, Check } from 'lucide-react';
 
 interface PlantCardProps {
   id: string;
@@ -10,8 +10,12 @@ interface PlantCardProps {
   hasReminder?: boolean;
   reminderDate?: string;
   reminderText?: string;
+  daysUntilWatering?: number;
   onReminderClick?: () => void;
   onCardClick?: () => void;
+  onDeleteClick?: () => void;
+  onWateringConfirm?: () => void;
+  showDeleteButton?: boolean;
 }
 
 const CardContainer = styled.div`
@@ -113,6 +117,14 @@ const ScientificName = styled.p`
   text-align: right;
 `;
 
+const ButtonsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+`;
+
 const BellButton = styled.button<{ $hasNotification?: boolean }>`
   background: ${props => props.$hasNotification 
     ? 'linear-gradient(135deg, #FFB74D 0%, #FFA726 100%)' 
@@ -163,65 +175,206 @@ const BellButton = styled.button<{ $hasNotification?: boolean }>`
   `}
 `;
 
-const ReminderBadge = styled.div`
-  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+const DeleteButton = styled.button`
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(244, 67, 54, 0.15);
+  flex-shrink: 0;
+
+  &:hover {
+    transform: scale(1.05);
+    background: linear-gradient(135deg, #ffcdd2 0%, #ef9a9a 100%);
+    box-shadow: 0 4px 12px rgba(244, 67, 54, 0.25);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  svg {
+    color: #c62828;
+  }
+`;
+
+const WateringStatusBadge = styled.div<{ $status: 'overdue' | 'urgent' | 'today' | 'upcoming' | 'normal' }>`
+  background: ${props => {
+    switch (props.$status) {
+      case 'overdue': return 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)';
+      case 'urgent': return 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)';
+      case 'today': return 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)';
+      case 'upcoming': return 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)';
+      default: return 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)';
+    }
+  }};
   border-radius: 12px;
   padding: 10px 16px;
   margin-top: 12px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   box-shadow: 
-    0 2px 8px rgba(76, 175, 80, 0.15),
+    0 2px 8px ${props => {
+      switch (props.$status) {
+        case 'overdue': return 'rgba(244, 67, 54, 0.15)';
+        case 'urgent': return 'rgba(255, 152, 0, 0.15)';
+        case 'today': return 'rgba(33, 150, 243, 0.15)';
+        case 'upcoming': return 'rgba(76, 175, 80, 0.15)';
+        default: return 'rgba(0, 0, 0, 0.08)';
+      }
+    }},
     inset 0 1px 2px rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(76, 175, 80, 0.15);
+  border: 1px solid ${props => {
+    switch (props.$status) {
+      case 'overdue': return 'rgba(244, 67, 54, 0.2)';
+      case 'urgent': return 'rgba(255, 152, 0, 0.2)';
+      case 'today': return 'rgba(33, 150, 243, 0.2)';
+      case 'upcoming': return 'rgba(76, 175, 80, 0.15)';
+      default: return 'rgba(0, 0, 0, 0.08)';
+    }
+  }};
 `;
 
-const ReminderText = styled.div`
+const StatusTextContainer = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
 `;
 
-const ReminderTitle = styled.span`
+const StatusTitle = styled.span<{ $status: 'overdue' | 'urgent' | 'today' | 'upcoming' | 'normal' }>`
   font-family: 'Vazirmatn', sans-serif;
   font-size: 13px;
   font-weight: 600;
-  color: #2e7d32;
+  color: ${props => {
+    switch (props.$status) {
+      case 'overdue': return '#c62828';
+      case 'urgent': return '#ef6c00';
+      case 'today': return '#1565c0';
+      case 'upcoming': return '#2e7d32';
+      default: return '#616161';
+    }
+  }};
 `;
 
-const ReminderDate = styled.span`
+const StatusSubtitle = styled.span<{ $status: 'overdue' | 'urgent' | 'today' | 'upcoming' | 'normal' }>`
   font-family: 'Vazirmatn', sans-serif;
   font-size: 12px;
-  color: #558b2f;
   font-weight: 500;
+  color: ${props => {
+    switch (props.$status) {
+      case 'overdue': return '#e53935';
+      case 'urgent': return '#ff9800';
+      case 'today': return '#42a5f5';
+      case 'upcoming': return '#558b2f';
+      default: return '#9e9e9e';
+    }
+  }};
 `;
 
-const ReminderIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, #66bb6a 0%, #4caf50 100%);
-  border-radius: 8px;
+const StatusIcon = styled.div<{ $status: 'overdue' | 'urgent' | 'today' | 'upcoming' | 'normal' }>`
+  width: 36px;
+  height: 36px;
+  background: ${props => {
+    switch (props.$status) {
+      case 'overdue': return 'linear-gradient(135deg, #e53935 0%, #c62828 100%)';
+      case 'urgent': return 'linear-gradient(135deg, #ff9800 0%, #ef6c00 100%)';
+      case 'today': return 'linear-gradient(135deg, #42a5f5 0%, #1e88e5 100%)';
+      case 'upcoming': return 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)';
+      default: return 'linear-gradient(135deg, #9e9e9e 0%, #757575 100%)';
+    }
+  }};
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+  box-shadow: 0 2px 8px ${props => {
+    switch (props.$status) {
+      case 'overdue': return 'rgba(244, 67, 54, 0.3)';
+      case 'urgent': return 'rgba(255, 152, 0, 0.3)';
+      case 'today': return 'rgba(33, 150, 243, 0.3)';
+      case 'upcoming': return 'rgba(76, 175, 80, 0.3)';
+      default: return 'rgba(0, 0, 0, 0.15)';
+    }
+  }};
 
   svg {
     color: #fff;
   }
 `;
 
+const ConfirmWateringButton = styled.button<{ $status: 'overdue' | 'urgent' | 'today' | 'upcoming' | 'normal' }>`
+  background: ${props => {
+    switch (props.$status) {
+      case 'overdue': return 'linear-gradient(135deg, #e53935 0%, #c62828 100%)';
+      case 'today': return 'linear-gradient(135deg, #42a5f5 0%, #1e88e5 100%)';
+      case 'urgent': return 'linear-gradient(135deg, #ff9800 0%, #ef6c00 100%)';
+      default: return 'linear-gradient(135deg, #66bb6a 0%, #4caf50 100%)';
+    }
+  }};
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px ${props => {
+    switch (props.$status) {
+      case 'overdue': return 'rgba(244, 67, 54, 0.3)';
+      case 'today': return 'rgba(33, 150, 243, 0.3)';
+      case 'urgent': return 'rgba(255, 152, 0, 0.3)';
+      default: return 'rgba(76, 175, 80, 0.3)';
+    }
+  }};
+  flex-shrink: 0;
+
+  &:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 12px ${props => {
+      switch (props.$status) {
+        case 'overdue': return 'rgba(244, 67, 54, 0.4)';
+        case 'today': return 'rgba(33, 150, 243, 0.4)';
+        case 'urgent': return 'rgba(255, 152, 0, 0.4)';
+        default: return 'rgba(76, 175, 80, 0.4)';
+      }
+    }};
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  svg {
+    color: #fff;
+  }
+`;
+
+const toPersianDigits = (num: number): string => {
+  const persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+  return Math.abs(num).toString().split('').map(digit => persianDigits[parseInt(digit)] || digit).join('');
+};
+
 const PlantCard: React.FC<PlantCardProps> = ({
   name,
   scientificName,
   image,
   hasReminder,
-  reminderDate,
-  reminderText,
+  daysUntilWatering,
   onReminderClick,
   onCardClick,
+  onDeleteClick,
+  onWateringConfirm,
+  showDeleteButton = false,
 }) => {
   const handleBellClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -229,6 +382,79 @@ const PlantCard: React.FC<PlantCardProps> = ({
       onReminderClick();
     }
   };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onDeleteClick) {
+      onDeleteClick();
+    }
+  };
+
+  const handleWateringConfirm = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onWateringConfirm) {
+      onWateringConfirm();
+    }
+  };
+
+  // محاسبه وضعیت آبیاری
+  const getWateringStatus = (): 'overdue' | 'urgent' | 'today' | 'upcoming' | 'normal' => {
+    if (daysUntilWatering === undefined) return 'normal';
+    if (daysUntilWatering < 0) return 'overdue';
+    if (daysUntilWatering === 0) return 'today';
+    if (daysUntilWatering <= 2) return 'urgent';
+    return 'upcoming';
+  };
+
+  // آیا باید دکمه تایید آبیاری نمایش داده شود؟
+  const shouldShowConfirmButton = (): boolean => {
+    if (daysUntilWatering === undefined) return false;
+    // نمایش دکمه تیک وقتی روز آبیاری است، یک روز مانده یا گذشته
+    return daysUntilWatering <= 1;
+  };
+
+  // محاسبه متن وضعیت
+  const getStatusText = (): { title: string; subtitle: string } => {
+    if (daysUntilWatering === undefined) return { title: 'یادآور آبیاری', subtitle: 'تنظیم نشده' };
+    
+    if (daysUntilWatering < 0) {
+      const days = Math.abs(daysUntilWatering);
+      return {
+        title: 'نیاز به آبیاری فوری',
+        subtitle: `${toPersianDigits(days)} روز از آبیاری گذشته`
+      };
+    }
+    
+    if (daysUntilWatering === 0) {
+      return {
+        title: 'امروز آبیاری کنید',
+        subtitle: 'روز آبیاری است'
+      };
+    }
+    
+    if (daysUntilWatering === 1) {
+      return {
+        title: 'فردا آبیاری کنید',
+        subtitle: '۱ روز تا آبیاری'
+      };
+    }
+    
+    if (daysUntilWatering <= 2) {
+      return {
+        title: 'آبیاری نزدیک است',
+        subtitle: `${toPersianDigits(daysUntilWatering)} روز تا آبیاری`
+      };
+    }
+    
+    return {
+      title: 'یادآور آبیاری',
+      subtitle: `${toPersianDigits(daysUntilWatering)} روز تا آبیاری بعدی`
+    };
+  };
+
+  const status = getWateringStatus();
+  const statusText = getStatusText();
+  const showConfirmButton = shouldShowConfirmButton();
 
   return (
     <CardContainer onClick={onCardClick}>
@@ -240,23 +466,35 @@ const PlantCard: React.FC<PlantCardProps> = ({
           <PlantName>{name}</PlantName>
           <ScientificName>{scientificName}</ScientificName>
         </PlantInfo>
-        <BellButton 
-          $hasNotification={hasReminder}
-          onClick={handleBellClick}
-        >
-          <Bell size={20} />
-        </BellButton>
+        <ButtonsContainer>
+          {showDeleteButton && (
+            <DeleteButton onClick={handleDeleteClick}>
+              <Trash2 size={16} />
+            </DeleteButton>
+          )}
+          <BellButton 
+            $hasNotification={hasReminder}
+            onClick={handleBellClick}
+          >
+            <Bell size={20} />
+          </BellButton>
+        </ButtonsContainer>
       </CardContent>
-      {hasReminder && reminderText && reminderDate && (
-        <ReminderBadge>
-          <ReminderIcon>
-            <Bell size={16} />
-          </ReminderIcon>
-          <ReminderText>
-            <ReminderTitle>{reminderText}</ReminderTitle>
-            <ReminderDate>{reminderDate}</ReminderDate>
-          </ReminderText>
-        </ReminderBadge>
+      {daysUntilWatering !== undefined && (
+        <WateringStatusBadge $status={status}>
+          <StatusIcon $status={status}>
+            <Droplets size={18} />
+          </StatusIcon>
+          <StatusTextContainer>
+            <StatusTitle $status={status}>{statusText.title}</StatusTitle>
+            <StatusSubtitle $status={status}>{statusText.subtitle}</StatusSubtitle>
+          </StatusTextContainer>
+          {showConfirmButton && (
+            <ConfirmWateringButton $status={status} onClick={handleWateringConfirm}>
+              <Check size={20} />
+            </ConfirmWateringButton>
+          )}
+        </WateringStatusBadge>
       )}
     </CardContainer>
   );

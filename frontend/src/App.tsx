@@ -1,6 +1,7 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import BottomNavigation from './components/BottomNavigation';
 import HomeScreen from './screens/HomeScreen';
 import DiagnosisScreen from './screens/DiagnosisScreen';
@@ -11,6 +12,10 @@ import PlantDetailScreen from './screens/PlantDetailScreen';
 import WeatherConditionScreen from './screens/WeatherConditionScreen';
 import AnalysisScreen from './screens/AnalysisScreen';
 import PlantRecommendationScreen from './screens/PlantRecommendationScreen';
+import PlantIdentifyScreen from './screens/PlantIdentifyScreen';
+import PlantBankScreen from './screens/PlantBankScreen';
+import LoginScreen from './screens/LoginScreen';
+import OTPVerifyScreen from './screens/OTPVerifyScreen';
 import './App.css';
 
 const AppContainer = styled.div`
@@ -32,26 +37,154 @@ const MainContent = styled.main`
   text-align: right;
 `;
 
+const AuthMainContent = styled.main`
+  flex: 1;
+  overflow-x: hidden;
+  direction: rtl;
+  text-align: right;
+`;
+
+const LoadingContainer = styled.div`
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 30%, #a5d6a7 70%, #81c784 100%);
+`;
+
+const LoadingLogo = styled.div`
+  width: 100px;
+  height: 100px;
+  background: white;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20px 40px rgba(76, 175, 80, 0.2);
+  margin-bottom: 24px;
+  animation: pulse 1.5s ease-in-out infinite;
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+`;
+
+const LoadingText = styled.p`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 16px;
+  color: #1b5e20;
+  margin: 0;
+`;
+
+// Protected Route Component
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <LoadingContainer>
+        <LoadingLogo>
+          <span style={{ fontSize: 48 }}>🌱</span>
+        </LoadingLogo>
+        <LoadingText>در حال بارگذاری...</LoadingText>
+      </LoadingContainer>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Auth Route Component (for login/otp pages)
+const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <LoadingContainer>
+        <LoadingLogo>
+          <span style={{ fontSize: 48 }}>🌱</span>
+        </LoadingLogo>
+        <LoadingText>در حال بارگذاری...</LoadingText>
+      </LoadingContainer>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Main App Content
+const AppContent: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <LoadingContainer>
+        <LoadingLogo>
+          <span style={{ fontSize: 48 }}>🌱</span>
+        </LoadingLogo>
+        <LoadingText>در حال بارگذاری...</LoadingText>
+      </LoadingContainer>
+    );
+  }
+
+  return (
+    <AppContainer>
+      {isAuthenticated ? (
+        // Authenticated routes
+        <>
+          <MainContent>
+            <Routes>
+              <Route path="/" element={<ProtectedRoute><GardenScreen /></ProtectedRoute>} />
+              <Route path="/home" element={<ProtectedRoute><HomeScreen /></ProtectedRoute>} />
+              <Route path="/diagnosis" element={<ProtectedRoute><DiagnosisScreen /></ProtectedRoute>} />
+              <Route path="/identify" element={<ProtectedRoute><PlantIdentifyScreen /></ProtectedRoute>} />
+              <Route path="/search" element={<ProtectedRoute><SearchScreen /></ProtectedRoute>} />
+              <Route path="/garden" element={<ProtectedRoute><GardenScreen /></ProtectedRoute>} />
+              <Route path="/plant-bank" element={<ProtectedRoute><PlantBankScreen /></ProtectedRoute>} />
+              <Route path="/plant/:id" element={<ProtectedRoute><PlantDetailScreen /></ProtectedRoute>} />
+              <Route path="/plant-detail/:id" element={<ProtectedRoute><PlantDetailScreen /></ProtectedRoute>} />
+              <Route path="/weather" element={<ProtectedRoute><WeatherConditionScreen /></ProtectedRoute>} />
+              <Route path="/analysis" element={<ProtectedRoute><AnalysisScreen /></ProtectedRoute>} />
+              <Route path="/recommendation" element={<ProtectedRoute><PlantRecommendationScreen /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
+              <Route path="/login" element={<Navigate to="/" replace />} />
+              <Route path="/verify-otp" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </MainContent>
+          <BottomNavigation />
+        </>
+      ) : (
+        // Auth routes (no bottom navigation)
+        <AuthMainContent>
+          <Routes>
+            <Route path="/login" element={<AuthRoute><LoginScreen /></AuthRoute>} />
+            <Route path="/verify-otp" element={<AuthRoute><OTPVerifyScreen /></AuthRoute>} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </AuthMainContent>
+      )}
+    </AppContainer>
+  );
+};
+
 function App() {
   return (
-    <Router>
-      <AppContainer>
-        <MainContent>
-          <Routes>
-            <Route path="/" element={<HomeScreen />} />
-            <Route path="/diagnosis" element={<DiagnosisScreen />} />
-            <Route path="/search" element={<SearchScreen />} />
-            <Route path="/garden" element={<GardenScreen />} />
-            <Route path="/plant/:id" element={<PlantDetailScreen />} />
-            <Route path="/weather" element={<WeatherConditionScreen />} />
-            <Route path="/analysis" element={<AnalysisScreen />} />
-            <Route path="/recommendation" element={<PlantRecommendationScreen />} />
-            <Route path="/profile" element={<ProfileScreen />} />
-          </Routes>
-        </MainContent>
-        <BottomNavigation />
-      </AppContainer>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </AuthProvider>
   );
 }
 

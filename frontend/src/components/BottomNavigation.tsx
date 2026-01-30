@@ -61,13 +61,15 @@ const NavItem = styled.button<{ $active: boolean; $camera?: boolean }>`
   ${props => props.$camera && `
     background: linear-gradient(135deg, #FF9500 0%, #FF7043 50%, #FF6B35 100%);
     border-radius: 50%;
-    width: 60px;
-    height: 60px;
-    margin-top: -18px;
-    margin-bottom: -10px;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    margin-top: 4px;
     justify-content: center;
+    align-items: center;
     box-shadow: 0 8px 24px rgba(255, 149, 0, 0.3), 0 4px 8px rgba(255, 149, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3);
     border: 2px solid rgba(255, 255, 255, 0.8);
+    position: relative;
     
     &::after {
       content: '';
@@ -132,21 +134,21 @@ const BottomNavigation: React.FC = () => {
 
   const navItems = [
     {
-      id: 'home',
-      icon: Home,
-      label: 'خانه', 
+      id: 'garden',
+      icon: Leaf, 
+      label: 'باغچه من',
       path: '/'
     },
     {
-      id: 'garden',
-      icon: Leaf, 
-      label: 'باغچه',
-      path: '/garden'
+      id: 'home',
+      icon: Home,
+      label: 'خانه', 
+      path: '/home'
     },
     {
       id: 'camera',
       icon: Camera,
-      label: 'دوربین',
+      label: '',
       path: '/diagnosis',
       camera: true
     },
@@ -154,7 +156,7 @@ const BottomNavigation: React.FC = () => {
       id: 'bank', 
       icon: Search,
       label: 'بانک',
-      path: '/search'
+      path: '/plant-bank'
     },
     {
       id: 'chat',

@@ -1,7 +1,9 @@
 import React from 'react';
 import styled from 'styled-components';
+import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { User, Settings, HelpCircle, Star, Shield, LogOut } from 'lucide-react';
+import { User, Settings, Info, Share2, Shield, LogOut, Phone, Crown } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const ScreenContainer = styled.div`
   min-height: 100vh;
@@ -18,6 +20,9 @@ const ProfileCard = styled.div`
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
   direction: rtl;
   border: 1px solid #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 `;
 
 const Avatar = styled.div`
@@ -28,7 +33,7 @@ const Avatar = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 20px;
+  margin-bottom: 20px;
   font-size: 36px;
   color: white;
   box-shadow: 0 4px 16px rgba(76, 175, 80, 0.2);
@@ -43,12 +48,27 @@ const UserName = styled.h3`
   line-height: 1.3;
 `;
 
-const UserEmail = styled.p`
-  font-size: 15px;
+const PhoneContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: #6b7280;
-  margin: 0;
+  font-size: 16px;
+  background: #f9fafb;
+  padding: 8px 16px;
+  border-radius: 12px;
+  margin-top: 8px;
+`;
+
+const StatusBadge = styled.span`
+  background: #e8f5e9;
+  color: #2e7d32;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 600;
   font-family: 'Vazirmatn', sans-serif;
-  font-weight: 400;
+
 `;
 
 const MenuSection = styled.div`
@@ -114,51 +134,86 @@ const LogoutButton = styled(MenuItem)`
   svg {
     color: #FF5722;
   }
+
+  &:hover svg {
+    color: #d84315;
+  }
+
+  ${MenuText} {
+    color: #FF5722;
+  }
 `;
 
 const ProfileScreen: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
   const handleMenuClick = (menuItem: string) => {
-    alert(`${menuItem} به زودی فعال خواهد شد`);
+    // Actions for specific menu items can be handled here
+    if (menuItem === 'share') {
+      if (navigator.share) {
+        navigator.share({
+          title: 'گل‌دان',
+          text: 'من از اپلیکیشن گل‌دان برای مدیریت گیاهانم استفاده می‌کنم.',
+          url: window.location.origin,
+        }).catch(console.error);
+      } else {
+        alert('قابلیت اشتراک‌گذاری در مرورگر شما پشتیبانی نمی‌شود.');
+      }
+    } else {
+      alert(`${menuItem} به زودی فعال خواهد شد`);
+    }
   };
 
-  const handleLogout = () => {
-    alert('خروج از حساب کاربری');
+  const handleLogout = async () => {
+    if (window.confirm('آیا مطمئن هستید که می‌خواهید از حساب خود خارج شوید؟')) {
+      await logout();
+      navigate('/login');
+    }
+  };
+
+  const formatPhoneDisplay = (phone: string): string => {
+    if (!phone) return '';
+    return phone.replace(/(\d{4})(\d{3})(\d{4})/, '$1 $2 $3');
   };
 
   return (
     <ScreenContainer>
-      <Header title="پروفایل" />
+      <Header title="پروفایل کاربری" showNotificationBadge={false} />
       
       <ProfileCard>
         <Avatar>
-          <User size={32} />
+          <User size={40} />
         </Avatar>
-        <UserName>کاربر گل دان</UserName>
-        <UserEmail>user@goldan.app</UserEmail>
+        <UserName>کاربر عزیز</UserName>
+        <PhoneContainer>
+          <Phone size={16} />
+          {user?.phone ? formatPhoneDisplay(user.phone) : '---'}
+        </PhoneContainer>
       </ProfileCard>
 
       <MenuSection>
-        <MenuItem onClick={() => handleMenuClick('تنظیمات')}>
-          <Settings size={20} />
-          <MenuText>تنظیمات</MenuText>
+        <MenuItem>
+          <Crown size={20} style={{ color: '#FFD700' }} />
+          <MenuText>وضعیت اشتراک</MenuText>
+          <StatusBadge>نسخه رایگان</StatusBadge>
+        </MenuItem>
+
+        <MenuItem onClick={() => handleMenuClick('درباره ما')}>
+          <Info size={20} />
+          <MenuText>درباره ما</MenuText>
           <MenuArrow>‹</MenuArrow>
         </MenuItem>
         
-        <MenuItem onClick={() => handleMenuClick('امتیاز به برنامه')}>
-          <Star size={20} />
-          <MenuText>امتیاز به برنامه</MenuText>
+        <MenuItem onClick={() => handleMenuClick('share')}>
+          <Share2 size={20} />
+          <MenuText>اشتراک گذاری</MenuText>
           <MenuArrow>‹</MenuArrow>
         </MenuItem>
         
-        <MenuItem onClick={() => handleMenuClick('راهنما و پشتیبانی')}>
-          <HelpCircle size={20} />
-          <MenuText>راهنما و پشتیبانی</MenuText>
-          <MenuArrow>‹</MenuArrow>
-        </MenuItem>
-        
-        <MenuItem onClick={() => handleMenuClick('حریم خصوصی')}>
+        <MenuItem onClick={() => handleMenuClick('حریم خصوصی و امنیت')}>
           <Shield size={20} />
-          <MenuText>حریم خصوصی</MenuText>
+          <MenuText>حریم خصوصی و امنیت</MenuText>
           <MenuArrow>‹</MenuArrow>
         </MenuItem>
       </MenuSection>
@@ -166,7 +221,7 @@ const ProfileScreen: React.FC = () => {
       <MenuSection>
         <LogoutButton onClick={handleLogout}>
           <LogOut size={20} />
-          <MenuText>خروج از حساب</MenuText>
+          <MenuText>خروج از حساب کاربری</MenuText>
           <MenuArrow>‹</MenuArrow>
         </LogoutButton>
       </MenuSection>

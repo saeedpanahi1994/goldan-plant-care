@@ -1,10 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { ArrowRight, Droplets, Sun, Thermometer, Wind, ChevronDown, ChevronUp } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Droplets, Sun, Thermometer, Wind, ChevronDown, ChevronUp, Leaf, Plus, Check } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import axios from 'axios';
 
-interface PlantDetailProps {
-  plantId?: string;
+const API_URL = 'http://130.185.76.46:4380/api';
+
+interface PlantData {
+  id: number;
+  name: string;
+  name_fa: string;
+  scientific_name: string;
+  description_fa: string;
+  main_image_url: string;
+  additional_images: string[];
+  watering_interval_days: number;
+  watering_tips: string;
+  light_requirement: string;
+  light_description: string;
+  min_temperature: number;
+  max_temperature: number;
+  humidity_level: string;
+  humidity_tips: string;
+  fertilizer_interval_days: number;
+  fertilizer_tips: string;
+  difficulty_level: string;
+  is_toxic_to_pets: boolean;
+  is_air_purifying: boolean;
 }
 
 const ScreenContainer = styled.div`
@@ -60,6 +82,35 @@ const HeaderTitle = styled.h1`
   flex: 1;
 `;
 
+const LoadingContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 20px;
+  gap: 16px;
+`;
+
+const Spinner = styled.div`
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(76, 175, 80, 0.1);
+  border-top-color: #4CAF50;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+`;
+
+const LoadingText = styled.p`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  color: #4CAF50;
+  font-weight: 600;
+`;
+
 const ImageSection = styled.div`
   background: #ffffff;
   padding: 24px 20px;
@@ -71,28 +122,52 @@ const MainImage = styled.div`
   height: 320px;
   border-radius: 20px;
   overflow: hidden;
-  background: #f5f5f5;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
   margin-bottom: 16px;
   box-shadow: 
     0 8px 24px rgba(0, 0, 0, 0.1),
     inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
 
   img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: opacity 0.3s ease;
+  }
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(76, 175, 80, 0.2);
+    border-top-color: #4CAF50;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  
+  &.loaded::before {
+    display: none;
+  }
+  
+  @keyframes spin {
+    to { transform: translate(-50%, -50%) rotate(360deg); }
   }
 `;
 
 const ThumbnailGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 `;
 
 const Thumbnail = styled.div<{ $isActive?: boolean }>`
   width: 100%;
-  height: 100px;
+  height: 80px;
   border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
@@ -114,6 +189,45 @@ const Thumbnail = styled.div<{ $isActive?: boolean }>`
   }
 `;
 
+const PlantNameSection = styled.div`
+  background: #ffffff;
+  padding: 20px;
+  margin-bottom: 16px;
+`;
+
+const PlantName = styled.h2`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: #1b5e20;
+  margin: 0 0 8px 0;
+`;
+
+const ScientificName = styled.p`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  color: #757575;
+  font-style: italic;
+  margin: 0 0 12px 0;
+`;
+
+const DifficultyBadge = styled.span<{ $level: string }>`
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background: ${props => {
+    switch (props.$level) {
+      case 'easy': return 'linear-gradient(135deg, #a5d6a7 0%, #81c784 100%)';
+      case 'medium': return 'linear-gradient(135deg, #ffcc80 0%, #ffb74d 100%)';
+      case 'hard': return 'linear-gradient(135deg, #ef9a9a 0%, #e57373 100%)';
+      default: return '#e0e0e0';
+    }
+  }};
+  color: #ffffff;
+`;
+
 const DescriptionSection = styled.div`
   background: #ffffff;
   padding: 20px;
@@ -121,26 +235,11 @@ const DescriptionSection = styled.div`
   border-radius: 0;
 `;
 
-const DescriptionText = styled.p`
-  font-family: 'Vazirmatn', sans-serif;
-  font-size: 14px;
-  line-height: 1.8;
-  color: #424242;
-  margin: 0;
-  text-align: justify;
-`;
-
-const SpecsSection = styled.div`
-  background: #ffffff;
-  padding: 20px;
-  margin-bottom: 16px;
-`;
-
 const SectionHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 `;
 
 const SectionIcon = styled.div`
@@ -166,32 +265,13 @@ const SectionTitle = styled.h2`
   margin: 0;
 `;
 
-const SpecsGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-`;
-
-const SpecItem = styled.div`
-  background: linear-gradient(135deg, #f5f9f5 0%, #e8f5e9 100%);
-  border-radius: 12px;
-  padding: 14px;
-  border: 1px solid rgba(76, 175, 80, 0.1);
-`;
-
-const SpecLabel = styled.div`
-  font-family: 'Vazirmatn', sans-serif;
-  font-size: 12px;
-  color: #757575;
-  margin-bottom: 6px;
-  font-weight: 500;
-`;
-
-const SpecValue = styled.div`
+const DescriptionText = styled.p`
   font-family: 'Vazirmatn', sans-serif;
   font-size: 14px;
-  color: #2e7d32;
-  font-weight: 700;
+  line-height: 1.8;
+  color: #424242;
+  margin: 0;
+  text-align: justify;
 `;
 
 const CareSection = styled.div`
@@ -334,7 +414,7 @@ const AddToGardenButton = styled.button`
   border: none;
   border-radius: 16px;
   padding: 16px;
-  margin: 20px;
+  margin: 20px 20px 10px 20px;
   font-family: 'Vazirmatn', sans-serif;
   font-size: 16px;
   font-weight: 700;
@@ -358,37 +438,135 @@ const AddToGardenButton = styled.button`
   }
 `;
 
-const PlantDetailScreen: React.FC<PlantDetailProps> = () => {
+const AddToMyGardenButton = styled.button<{ $added?: boolean }>`
+  background: ${props => props.$added 
+    ? 'linear-gradient(135deg, #66BB6A 0%, #81C784 100%)'
+    : 'linear-gradient(135deg, #2196F3 0%, #42A5F5 100%)'};
+  border: none;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 10px 20px 20px 20px;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: ${props => props.$added ? 'default' : 'pointer'};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: ${props => props.$added 
+    ? '0 6px 20px rgba(102, 187, 106, 0.3)' 
+    : '0 6px 20px rgba(33, 150, 243, 0.3)'};
+  width: calc(100% - 40px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:hover {
+    transform: ${props => props.$added ? 'none' : 'translateY(-2px)'};
+    box-shadow: ${props => props.$added 
+      ? '0 6px 20px rgba(102, 187, 106, 0.3)'
+      : '0 8px 24px rgba(33, 150, 243, 0.4)'};
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;
+
+const ErrorContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+`;
+
+const ErrorIcon = styled.div`
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  
+  svg {
+    color: #e53935;
+  }
+`;
+
+const ErrorText = styled.p`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 16px;
+  color: #757575;
+  margin: 0;
+`;
+
+const PlantDetailScreen: React.FC = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const [plant, setPlant] = useState<PlantData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [mainImageLoaded, setMainImageLoaded] = useState(false);
+  const [addingToGarden, setAddingToGarden] = useState(false);
+  const [addedToGarden, setAddedToGarden] = useState(false);
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
     watering: false,
     light: false,
+    humidity: false,
     fertilizer: false,
   });
 
-  // Sample plant data - در آینده از API دریافت خواهد شد
-  const plant = {
-    name: 'گیاه هوازی تیلاندسیا',
-    scientificName: 'Tillandsia',
-    images: [
-      'https://images.unsplash.com/photo-1509937528035-ad76254b0356?w=600&h=600&fit=crop',
-      'https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600&h=600&fit=crop',
-      'https://images.unsplash.com/photo-1466781783364-36c955e42a7f?w=600&h=600&fit=crop',
-    ],
-    description: 'این گیاه اسطوره‌ی گیاهان هوازی است و دوست دارد زیر نور دلپذیر آفتاب آویزان باشد. این گیاه متعلق به مناطق نیمه مرطوب مرکز آمریکاست، جایی که آن روی شاخه درختان در جنگل رشد می‌کند. کثر انواع گیاه هوازی تیلاندسیا به محیط‌های مرطوب عادت کرده اند.',
-    care: {
-      watering: 'هر ۱۰ تا ۲۱ روز',
-      humidity: '۳۰ تا ۶۰ درصد',
-      light: '۳۰۰ تا ۱۰۰۰ لوکس',
-      temperature: '۱۶ تا ۲۸ سلسیوس',
-    },
-    details: {
-      watering: 'بازه دمایی ایده‌آل برای تیلاندسیا، دمایی بین ۱۶ الی ۲۷ درجه سانتی گراد است. سرمای زمستان سبب مرگ اغلب گیاهان هوازی خواهد شد، بنابراین مواظب باشید تیلاندسیا سرمای هوا را تجربه نکند.',
-      light: 'تیلاندسیا به نور غیرمستقیم و روشن نیاز دارد. از قرار دادن آن در معرض نور مستقیم خورشید خودداری کنید.',
-      fertilizer: 'از کود مایع رقیق شده (۱۰-۱۰-۱۰) هر ماه یکبار استفاده کنید. کود را در آب پاشیدنی حل کنید.',
-    },
-  };
+  useEffect(() => {
+    const fetchPlantDetails = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        const response = await axios.get(`${API_URL}/plant-bank/${id}`);
+        
+        if (response.data.success) {
+          setPlant(response.data.data);
+          
+          // بررسی اینکه آیا گیاه قبلاً به باغچه کاربر اضافه شده
+          const token = localStorage.getItem('authToken');
+          if (token) {
+            try {
+              const plantsResponse = await axios.get(`${API_URL}/plants`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              
+              if (plantsResponse.data.success) {
+                const userPlants = plantsResponse.data.plants;
+                const alreadyAdded = userPlants.some((p: any) => p.plant_id === parseInt(id));
+                setAddedToGarden(alreadyAdded);
+              }
+            } catch (checkError) {
+              console.log('خطا در بررسی گیاهان کاربر:', checkError);
+            }
+          }
+        } else {
+          setError('گیاه یافت نشد');
+        }
+      } catch (err) {
+        console.error('خطا در دریافت اطلاعات گیاه:', err);
+        setError('خطا در دریافت اطلاعات گیاه');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlantDetails();
+  }, [id]);
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({
@@ -396,6 +574,120 @@ const PlantDetailScreen: React.FC<PlantDetailProps> = () => {
       [section]: !prev[section],
     }));
   };
+
+  const handleAddToGarden = async () => {
+    if (!plant || addedToGarden || addingToGarden) return;
+
+    try {
+      setAddingToGarden(true);
+      const token = localStorage.getItem('authToken');
+      
+      if (!token) {
+        alert('لطفا ابتدا وارد شوید');
+        navigate('/login');
+        return;
+      }
+
+      // دریافت یا ایجاد باغچه پیش‌فرض کاربر
+      const gardenResponse = await axios.get(`${API_URL}/gardens/default`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!gardenResponse.data.success) {
+        throw new Error('خطا در دریافت باغچه');
+      }
+
+      const gardenId = gardenResponse.data.garden.id;
+
+      // افزودن گیاه به باغچه
+      const addResponse = await axios.post(`${API_URL}/plants`, {
+        garden_id: gardenId,
+        plant_id: plant.id
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (addResponse.data.success) {
+        setAddedToGarden(true);
+        // نمایش پیام موفقیت
+        setTimeout(() => {
+          alert('گیاه با موفقیت به باغچه شما اضافه شد!');
+        }, 100);
+      }
+    } catch (err: any) {
+      console.error('خطا در افزودن گیاه به باغچه:', err);
+      alert(err.response?.data?.message || 'خطا در افزودن گیاه به باغچه');
+    } finally {
+      setAddingToGarden(false);
+    }
+  };
+
+  const getDifficultyLabel = (level: string) => {
+    switch (level) {
+      case 'easy': return 'آسان';
+      case 'medium': return 'متوسط';
+      case 'hard': return 'سخت';
+      default: return level;
+    }
+  };
+
+  const getLightLabel = (light: string) => {
+    switch (light) {
+      case 'direct': return 'نور مستقیم';
+      case 'indirect': return 'نور غیرمستقیم';
+      case 'low': return 'نور کم';
+      case 'bright': return 'نور زیاد';
+      default: return light || 'متغیر';
+    }
+  };
+
+  const getHumidityLabel = (humidity: string) => {
+    switch (humidity) {
+      case 'high': return 'بالا';
+      case 'medium': return 'متوسط';
+      case 'low': return 'کم';
+      default: return humidity || 'متوسط';
+    }
+  };
+
+  // ترکیب تصویر اصلی با تصاویر اضافی
+  const allImages = plant ? [plant.main_image_url, ...(plant.additional_images || [])] : [];
+
+  if (loading) {
+    return (
+      <ScreenContainer>
+        <Header>
+          <BackButton onClick={() => navigate(-1)}>
+            <ArrowRight size={20} />
+          </BackButton>
+          <HeaderTitle>مشخصات گیاه</HeaderTitle>
+        </Header>
+        <LoadingContainer>
+          <Spinner />
+          <LoadingText>در حال بارگذاری اطلاعات گیاه...</LoadingText>
+        </LoadingContainer>
+      </ScreenContainer>
+    );
+  }
+
+  if (error || !plant) {
+    return (
+      <ScreenContainer>
+        <Header>
+          <BackButton onClick={() => navigate(-1)}>
+            <ArrowRight size={20} />
+          </BackButton>
+          <HeaderTitle>مشخصات گیاه</HeaderTitle>
+        </Header>
+        <ErrorContainer>
+          <ErrorIcon>
+            <Leaf size={40} />
+          </ErrorIcon>
+          <ErrorText>{error || 'گیاه یافت نشد'}</ErrorText>
+        </ErrorContainer>
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer>
@@ -407,49 +699,54 @@ const PlantDetailScreen: React.FC<PlantDetailProps> = () => {
       </Header>
 
       <ImageSection>
-        <MainImage>
-          <img src={plant.images[selectedImage]} alt={plant.name} />
+        <MainImage className={mainImageLoaded ? 'loaded' : ''}>
+          <img 
+            src={allImages[selectedImage]} 
+            alt={plant.name_fa}
+            onLoad={() => setMainImageLoaded(true)}
+            onError={(e) => {
+              e.currentTarget.src = 'https://via.placeholder.com/400x400?text=گیاه';
+              setMainImageLoaded(true);
+            }}
+          />
         </MainImage>
-        <ThumbnailGrid>
-          {plant.images.map((image, index) => (
-            <Thumbnail
-              key={index}
-              $isActive={selectedImage === index}
-              onClick={() => setSelectedImage(index)}
-            >
-              <img src={image} alt={`${plant.name} ${index + 1}`} />
-            </Thumbnail>
-          ))}
-        </ThumbnailGrid>
+        {allImages.length > 1 && (
+          <ThumbnailGrid>
+            {allImages.slice(0, 4).map((image, index) => (
+              <Thumbnail
+                key={index}
+                $isActive={selectedImage === index}
+                onClick={() => {
+                  setSelectedImage(index);
+                  setMainImageLoaded(false);
+                }}
+              >
+                <img src={image} alt={`${plant.name_fa} ${index + 1}`} />
+              </Thumbnail>
+            ))}
+          </ThumbnailGrid>
+        )}
       </ImageSection>
 
-      <DescriptionSection>
-        <DescriptionText>{plant.description}</DescriptionText>
-      </DescriptionSection>
+      <PlantNameSection>
+        <PlantName>{plant.name_fa}</PlantName>
+        <ScientificName>{plant.scientific_name}</ScientificName>
+        <DifficultyBadge $level={plant.difficulty_level}>
+          سطح نگهداری: {getDifficultyLabel(plant.difficulty_level)}
+        </DifficultyBadge>
+      </PlantNameSection>
 
-      <SpecsSection>
-        <SectionHeader>
-          <SectionIcon>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="12" y1="18" x2="12" y2="12" />
-              <line x1="9" y1="15" x2="15" y2="15" />
-            </svg>
-          </SectionIcon>
-          <SectionTitle>مشخصات گیاه</SectionTitle>
-        </SectionHeader>
-        <SpecsGrid>
-          <SpecItem>
-            <SpecLabel>نام گیاه:</SpecLabel>
-            <SpecValue>{plant.name}</SpecValue>
-          </SpecItem>
-          <SpecItem>
-            <SpecLabel>نام علمی:</SpecLabel>
-            <SpecValue>{plant.scientificName}</SpecValue>
-          </SpecItem>
-        </SpecsGrid>
-      </SpecsSection>
+      {plant.description_fa && (
+        <DescriptionSection>
+          <SectionHeader>
+            <SectionIcon>
+              <Leaf size={20} />
+            </SectionIcon>
+            <SectionTitle>درباره گیاه</SectionTitle>
+          </SectionHeader>
+          <DescriptionText>{plant.description_fa}</DescriptionText>
+        </DescriptionSection>
+      )}
 
       <CareSection>
         <SectionHeader>
@@ -465,7 +762,7 @@ const PlantDetailScreen: React.FC<PlantDetailProps> = () => {
             </CareIcon>
             <CareInfo>
               <CareLabel>آبدهی</CareLabel>
-              <CareValue>{plant.care.watering}</CareValue>
+              <CareValue>هر {plant.watering_interval_days} روز</CareValue>
             </CareInfo>
           </CareCard>
           <CareCard $color="#E8F5E9">
@@ -474,7 +771,7 @@ const PlantDetailScreen: React.FC<PlantDetailProps> = () => {
             </CareIcon>
             <CareInfo>
               <CareLabel>رطوبت</CareLabel>
-              <CareValue>{plant.care.humidity}</CareValue>
+              <CareValue>{getHumidityLabel(plant.humidity_level)}</CareValue>
             </CareInfo>
           </CareCard>
           <CareCard $color="#FFF3E0">
@@ -483,7 +780,7 @@ const PlantDetailScreen: React.FC<PlantDetailProps> = () => {
             </CareIcon>
             <CareInfo>
               <CareLabel>نور</CareLabel>
-              <CareValue>{plant.care.light}</CareValue>
+              <CareValue>{getLightLabel(plant.light_requirement)}</CareValue>
             </CareInfo>
           </CareCard>
           <CareCard $color="#FFEBEE">
@@ -492,66 +789,111 @@ const PlantDetailScreen: React.FC<PlantDetailProps> = () => {
             </CareIcon>
             <CareInfo>
               <CareLabel>دما</CareLabel>
-              <CareValue>{plant.care.temperature}</CareValue>
+              <CareValue>{plant.min_temperature} تا {plant.max_temperature}°</CareValue>
             </CareInfo>
           </CareCard>
         </CareGrid>
       </CareSection>
 
-      <CollapsibleSection>
-        <CollapsibleHeader 
-          $isOpen={openSections.watering}
-          onClick={() => toggleSection('watering')}
-        >
-          <CollapsibleTitle>نحوه ی آبدهی</CollapsibleTitle>
-          <CollapsibleIcon $isOpen={openSections.watering}>
-            {openSections.watering ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </CollapsibleIcon>
-        </CollapsibleHeader>
-        <CollapsibleContent $isOpen={openSections.watering}>
-          <CollapsibleBody>
-            <CollapsibleText>{plant.details.watering}</CollapsibleText>
-          </CollapsibleBody>
-        </CollapsibleContent>
-      </CollapsibleSection>
+      {plant.watering_tips && (
+        <CollapsibleSection>
+          <CollapsibleHeader 
+            $isOpen={openSections.watering}
+            onClick={() => toggleSection('watering')}
+          >
+            <CollapsibleTitle>نحوه آبیاری</CollapsibleTitle>
+            <CollapsibleIcon $isOpen={openSections.watering}>
+              {openSections.watering ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </CollapsibleIcon>
+          </CollapsibleHeader>
+          <CollapsibleContent $isOpen={openSections.watering}>
+            <CollapsibleBody>
+              <CollapsibleText>{plant.watering_tips}</CollapsibleText>
+            </CollapsibleBody>
+          </CollapsibleContent>
+        </CollapsibleSection>
+      )}
 
-      <CollapsibleSection>
-        <CollapsibleHeader 
-          $isOpen={openSections.light}
-          onClick={() => toggleSection('light')}
-        >
-          <CollapsibleTitle>نور مناسب</CollapsibleTitle>
-          <CollapsibleIcon $isOpen={openSections.light}>
-            {openSections.light ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </CollapsibleIcon>
-        </CollapsibleHeader>
-        <CollapsibleContent $isOpen={openSections.light}>
-          <CollapsibleBody>
-            <CollapsibleText>{plant.details.light}</CollapsibleText>
-          </CollapsibleBody>
-        </CollapsibleContent>
-      </CollapsibleSection>
+      {plant.light_description && (
+        <CollapsibleSection>
+          <CollapsibleHeader 
+            $isOpen={openSections.light}
+            onClick={() => toggleSection('light')}
+          >
+            <CollapsibleTitle>نور مناسب</CollapsibleTitle>
+            <CollapsibleIcon $isOpen={openSections.light}>
+              {openSections.light ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </CollapsibleIcon>
+          </CollapsibleHeader>
+          <CollapsibleContent $isOpen={openSections.light}>
+            <CollapsibleBody>
+              <CollapsibleText>{plant.light_description}</CollapsibleText>
+            </CollapsibleBody>
+          </CollapsibleContent>
+        </CollapsibleSection>
+      )}
 
-      <CollapsibleSection>
-        <CollapsibleHeader 
-          $isOpen={openSections.fertilizer}
-          onClick={() => toggleSection('fertilizer')}
-        >
-          <CollapsibleTitle>کود مناسب</CollapsibleTitle>
-          <CollapsibleIcon $isOpen={openSections.fertilizer}>
-            {openSections.fertilizer ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </CollapsibleIcon>
-        </CollapsibleHeader>
-        <CollapsibleContent $isOpen={openSections.fertilizer}>
-          <CollapsibleBody>
-            <CollapsibleText>{plant.details.fertilizer}</CollapsibleText>
-          </CollapsibleBody>
-        </CollapsibleContent>
-      </CollapsibleSection>
+      {plant.humidity_tips && (
+        <CollapsibleSection>
+          <CollapsibleHeader 
+            $isOpen={openSections.humidity}
+            onClick={() => toggleSection('humidity')}
+          >
+            <CollapsibleTitle>خاک مناسب</CollapsibleTitle>
+            <CollapsibleIcon $isOpen={openSections.humidity}>
+              {openSections.humidity ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </CollapsibleIcon>
+          </CollapsibleHeader>
+          <CollapsibleContent $isOpen={openSections.humidity}>
+            <CollapsibleBody>
+              <CollapsibleText>{plant.humidity_tips}</CollapsibleText>
+            </CollapsibleBody>
+          </CollapsibleContent>
+        </CollapsibleSection>
+      )}
+
+      {plant.fertilizer_tips && (
+        <CollapsibleSection>
+          <CollapsibleHeader 
+            $isOpen={openSections.fertilizer}
+            onClick={() => toggleSection('fertilizer')}
+          >
+            <CollapsibleTitle>کود مناسب</CollapsibleTitle>
+            <CollapsibleIcon $isOpen={openSections.fertilizer}>
+              {openSections.fertilizer ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </CollapsibleIcon>
+          </CollapsibleHeader>
+          <CollapsibleContent $isOpen={openSections.fertilizer}>
+            <CollapsibleBody>
+              <CollapsibleText>{plant.fertilizer_tips}</CollapsibleText>
+            </CollapsibleBody>
+          </CollapsibleContent>
+        </CollapsibleSection>
+      )}
 
       <AddToGardenButton onClick={() => navigate('/analysis')}>
-        انالیز محیط
+        آنالیز محیط
       </AddToGardenButton>
+
+      <AddToMyGardenButton 
+        onClick={handleAddToGarden}
+        disabled={addingToGarden || addedToGarden}
+        $added={addedToGarden}
+      >
+        {addingToGarden ? (
+          'در حال افزودن...'
+        ) : addedToGarden ? (
+          <>
+            <Check size={20} />
+            قبلاً به باغچه اضافه شده
+          </>
+        ) : (
+          <>
+            <Plus size={20} />
+            افزودن به باغچه
+          </>
+        )}
+      </AddToMyGardenButton>
     </ScreenContainer>
   );
 };
