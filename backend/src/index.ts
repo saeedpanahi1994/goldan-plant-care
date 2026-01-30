@@ -29,7 +29,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://130.185.76.46:3000', 'http://130.185.76.46', 'capacitor://localhost', 'http://localhost'],
+  origin: true, // Allow all origins for mobile app
   credentials: true
 }));
 app.use(morgan('combined'));
