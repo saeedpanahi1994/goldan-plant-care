@@ -519,14 +519,21 @@ export const recordCareActivity = async (
         WHERE up.id = $1
       `, [userPlantId]);
       
-      const intervalDays = plantResult.rows[0]?.interval_days || 7;
+      const intervalDays = Math.max(1, plantResult.rows[0]?.interval_days || 7);
       const nextWatering = new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000);
       
-      await client.query(`
+      console.log(`[Watering] Plant ${userPlantId}: Interval ${intervalDays} days. Setting next watering to ${nextWatering.toISOString()}`);
+
+      const updateResult = await client.query(`
         UPDATE user_plants
         SET last_watered_at = $1, next_watering_at = $2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $3
       `, [now, nextWatering, userPlantId]);
+
+      console.log(`[Watering] Updated ${updateResult.rowCount} rows for plant ${userPlantId}`);
+      if (updateResult.rowCount === 0) {
+        throw new Error(`Plant with ID ${userPlantId} not found or not updated.`);
+      }
     } else if (activityType === 'fertilizing') {
       // Get fertilizer interval
       const plantResult = await client.query(`
