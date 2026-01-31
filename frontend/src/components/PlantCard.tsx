@@ -467,10 +467,16 @@ const PlantCard: React.FC<PlantCardProps> = ({
   const statusText = getStatusText();
   const showConfirmButton = shouldShowConfirmButton();
   const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
-  const handleImageError = () => {
-    console.log('Image load error for:', image);
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    console.error('❌ Image load error for:', image, 'Error:', e);
     setImageError(true);
+  };
+
+  const handleImageLoad = () => {
+    console.log('✅ Image loaded successfully:', image);
+    setImageLoaded(true);
   };
 
   return (
@@ -484,6 +490,7 @@ const PlantCard: React.FC<PlantCardProps> = ({
               src={image} 
               alt={name} 
               onError={handleImageError}
+              onLoad={handleImageLoad}
             />
           )}
         </PlantImageContainer>

@@ -131,24 +131,32 @@ const AppContent: React.FC = () => {
 
   // مدیریت دکمه Back اندروید
   useEffect(() => {
-    const handleBackButton = CapApp.addListener('backButton', ({ canGoBack }) => {
-      // صفحات اصلی که نباید از آنها به عقب برگردیم (خروج از برنامه)
-      const mainPages = ['/', '/garden', '/login'];
-      
-      if (mainPages.includes(location.pathname)) {
-        // در صفحه اصلی هستیم - از برنامه خارج شو
-        CapApp.exitApp();
-      } else if (canGoBack || window.history.length > 1) {
-        // می‌توانیم به عقب برگردیم
-        navigate(-1);
-      } else {
-        // اگر نمی‌توانیم به عقب برگردیم، به صفحه اصلی برو
-        navigate('/');
-      }
-    });
+    let listenerHandle: any = null;
+    
+    const setupBackButtonListener = async () => {
+      listenerHandle = await CapApp.addListener('backButton', ({ canGoBack }) => {
+        // صفحات اصلی که نباید از آنها به عقب برگردیم (خروج از برنامه)
+        const mainPages = ['/', '/garden', '/login'];
+        
+        if (mainPages.includes(location.pathname)) {
+          // در صفحه اصلی هستیم - از برنامه خارج شو
+          CapApp.exitApp();
+        } else if (canGoBack || window.history.length > 1) {
+          // می‌توانیم به عقب برگردیم
+          navigate(-1);
+        } else {
+          // اگر نمی‌توانیم به عقب برگردیم، به صفحه اصلی برو
+          navigate('/');
+        }
+      });
+    };
+    
+    setupBackButtonListener();
 
     return () => {
-      handleBackButton.remove();
+      if (listenerHandle) {
+        listenerHandle.remove();
+      }
     };
   }, [navigate, location.pathname]);
 

@@ -14,9 +14,17 @@ const SERVER_URL = 'http://130.185.76.46:4380';
 
 // Helper function to get full image URL
 const getFullImageUrl = (imagePath: string | null): string => {
-  if (!imagePath) return 'https://via.placeholder.com/400x400?text=گیاه';
-  if (imagePath.startsWith('http')) return imagePath;
-  return `${SERVER_URL}${imagePath}`;
+  if (!imagePath) {
+    console.log('🖼️ Image path is null, using placeholder');
+    return 'https://via.placeholder.com/400x400?text=گیاه';
+  }
+  if (imagePath.startsWith('http')) {
+    console.log('🖼️ Full URL:', imagePath);
+    return imagePath;
+  }
+  const fullUrl = `${SERVER_URL}${imagePath}`;
+  console.log('🖼️ Built URL:', fullUrl, 'from path:', imagePath);
+  return fullUrl;
 };
 
 // Configure moment-jalaali
