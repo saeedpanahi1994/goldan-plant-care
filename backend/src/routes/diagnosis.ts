@@ -155,6 +155,59 @@ const createPrompt = () => `
 - همه توضیحات و tips باید به فارسی و خلاصه باشند
 `;
 
+// پرامپت ویژه شناسایی بیماری
+const createDiseasePrompt = () => `
+شما یک متخصص تشخیص بیماری گیاهان هستید. لطفاً این تصویر را با تمرکز روی بیماری/مشکل گیاه تحلیل کنید.
+
+مهم: پاسخ باید فقط و فقط یک JSON معتبر باشد بدون هیچ متن اضافی.
+
+{
+  "name": "نام فارسی گیاه",
+  "name_en": "نام انگلیسی گیاه",
+  "scientificName": "نام علمی گیاه",
+  "family": "خانواده گیاه به فارسی",
+  "description": "توضیح کوتاه درباره گیاه به فارسی (1-2 جمله)",
+  "needs": {
+    "light": "نیاز نوری",
+    "water": "نیاز آبیاری",
+    "temperature": "محدوده دمای مناسب",
+    "humidity": "نیاز رطوبت"
+  },
+  "healthStatus": "وضعیت سلامت گیاه (سالم، نیاز به توجه، بیمار)",
+  "disease": "نام بیماری اگر وجود دارد یا 'ندارد'",
+  "treatment": "راه درمان مرحله‌به‌مرحله یا 'نیاز به درمان خاصی ندارد'",
+  "careTips": ["نکته درمانی 1", "نکته درمانی 2", "نکته درمانی 3"],
+  "confidence": 0.85,
+  "watering_interval_days": 7,
+  "watering_tips": "نحوه صحیح آبیاری این گیاه به فارسی (1-2 جمله خلاصه)",
+  "light_requirement": "indirect",
+  "light_description": "توضیح نیاز نوری گیاه به فارسی (1-2 جمله خلاصه)",
+  "min_temperature": 15,
+  "max_temperature": 28,
+  "ideal_temperature": 22,
+  "temperature_tips": "توضیح دمای مناسب به فارسی (1 جمله)",
+  "humidity_level": "medium",
+  "humidity_tips": "توضیح رطوبت مناسب به فارسی (1 جمله)",
+  "fertilizer_interval_days": 30,
+  "fertilizer_type": "نوع کود مناسب (مثل: کود مایع همه‌کاره)",
+  "fertilizer_tips": "نحوه کوددهی به فارسی (1 جمله)",
+  "soil_type": "نوع خاک مناسب (مثل: خاک غنی و زهکش‌دار)",
+  "soil_tips": "توضیح خاک مناسب به فارسی (1-2 جمله)",
+  "difficulty_level": "easy",
+  "is_toxic_to_pets": false,
+  "is_air_purifying": true
+}
+
+نکات مهم:
+- تمرکز اصلی پاسخ روی بیماری و درمان است
+- اگر بیماری مشخص نیست، 'ندارد' بنویسید و دلیل احتمالی (مثلاً کمبود نور/آبیاری) را در treatment توضیح دهید
+- light_requirement باید یکی از این مقادیر باشد: direct, indirect, behind_curtain, low_light
+- humidity_level باید یکی از این مقادیر باشد: low, medium, high
+- difficulty_level باید یکی از این مقادیر باشد: easy, medium, hard
+- confidence عددی بین 0 تا 1 است
+- همه توضیحات و tips باید به فارسی و خلاصه باشند
+`;
+
 // تابع دانلود تصویر از Wikipedia و ذخیره در چند مسیر
 const downloadPlantImageFromWikipedia = async (plantName: string, scientificName: string): Promise<{ mainImage: string | null; additionalImage: string | null }> => {
   try {
@@ -263,7 +316,8 @@ const downloadPlantImageFromWikipedia = async (plantName: string, scientificName
 // تابع شناسایی گیاه با Gemini
 const identifyPlantWithGemini = async (
   imagePath: string,
-  mimeType: string = 'image/jpeg'
+  mimeType: string = 'image/jpeg',
+  promptOverride?: string
 ): Promise<PlantIdentificationResult | null> => {
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
@@ -272,7 +326,7 @@ const identifyPlantWithGemini = async (
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
     
-    const prompt = createPrompt();
+    const prompt = promptOverride || createPrompt();
     
     const result = await model.generateContent([
       prompt,
@@ -440,6 +494,87 @@ router.post('/identify-base64', async (req: Request, res: Response) => {
 });
 
 // ===================================
+// POST /api/diagnosis/disease - شناسایی بیماری از فایل آپلود شده
+// ===================================
+router.post('/disease', upload.single('image'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'لطفاً یک تصویر آپلود کنید'
+      });
+    }
+
+    const imagePath = req.file.path;
+    const mimeType = req.file.mimetype;
+
+    const result = await identifyPlantWithGemini(imagePath, mimeType, createDiseasePrompt());
+
+    if (!result) {
+      return res.status(500).json({
+        success: false,
+        message: 'خطا در شناسایی بیماری گیاه. لطفاً دوباره تلاش کنید.'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'بیماری گیاه با موفقیت شناسایی شد',
+      data: result
+    });
+  } catch (error) {
+    console.error('Disease identify error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطا در شناسایی بیماری گیاه'
+    });
+  }
+});
+
+// ===================================
+// POST /api/diagnosis/disease-base64 - شناسایی بیماری از Base64
+// ===================================
+router.post('/disease-base64', async (req: Request, res: Response) => {
+  try {
+    const { image, mimeType = 'image/jpeg' } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: 'لطفاً یک تصویر ارسال کنید'
+      });
+    }
+
+    const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.jpg`;
+    const imagePath = path.join(uploadsDir, filename);
+    
+    const imageBuffer = Buffer.from(image, 'base64');
+    fs.writeFileSync(imagePath, imageBuffer);
+
+    const result = await identifyPlantWithGemini(imagePath, mimeType, createDiseasePrompt());
+
+    if (!result) {
+      return res.status(500).json({
+        success: false,
+        message: 'خطا در شناسایی بیماری گیاه. لطفاً دوباره تلاش کنید.'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'بیماری گیاه با موفقیت شناسایی شد',
+      data: result
+    });
+  } catch (error) {
+    console.error('Disease identify base64 error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطا در شناسایی بیماری گیاه'
+    });
+  }
+});
+
+// ===================================
 // POST /api/diagnosis/add-to-garden - افزودن گیاه شناسایی شده به باغچه
 // ===================================
 router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response) => {
@@ -453,6 +588,12 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
         message: 'اطلاعات گیاه و شناسه باغچه الزامی است'
       });
     }
+
+    // اطمینان از وجود ستون تصویر سفارشی کاربر
+    await query(`
+      ALTER TABLE user_plants
+      ADD COLUMN IF NOT EXISTS custom_image_url TEXT
+    `);
 
     // ابتدا گیاه را در جدول plants ذخیره می‌کنیم (اگر وجود نداشت)
     // جستجو بر اساس نام علمی
@@ -534,6 +675,7 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
     const userPlant = await query(`
       INSERT INTO user_plants (
         user_id, garden_id, plant_id,
+        custom_image_url,
         last_watered_at, next_watering_at,
         last_fertilized_at, next_fertilizing_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -542,6 +684,7 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
       user.id,
       gardenId,
       plantId,
+      plantData.userImageUrl || null,
       now,
       nextWatering,
       now,

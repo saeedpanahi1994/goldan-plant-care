@@ -57,6 +57,7 @@ export interface UserPlant {
   plant_id: number;
   
   nickname: string | null;
+  custom_image_url?: string | null;
   custom_watering_interval: number | null;
   custom_fertilizer_interval: number | null;
   notes: string | null;
@@ -281,7 +282,7 @@ export const getPlantsByGarden = async (gardenId: number, userId: number): Promi
       p.name as plant_name,
       p.name_fa as plant_name_fa,
       p.scientific_name as plant_scientific_name,
-      p.main_image_url as plant_image
+      COALESCE(up.custom_image_url, p.main_image_url) as plant_image
     FROM user_plants up
     INNER JOIN plants p ON up.plant_id = p.id
     WHERE up.garden_id = $1 AND up.user_id = $2
@@ -298,7 +299,7 @@ export const getAllUserPlants = async (userId: number): Promise<UserPlant[]> => 
       p.name as plant_name,
       p.name_fa as plant_name_fa,
       p.scientific_name as plant_scientific_name,
-      p.main_image_url as plant_image,
+      COALESCE(up.custom_image_url, p.main_image_url) as plant_image,
       p.watering_interval_days as default_watering_interval,
       p.fertilizer_interval_days as default_fertilizer_interval,
       COALESCE(up.custom_watering_interval, p.watering_interval_days) as effective_watering_interval,
@@ -321,7 +322,7 @@ export const getUserPlantById = async (userPlantId: number, userId: number): Pro
       p.name_fa as plant_name_fa,
       p.scientific_name as plant_scientific_name,
       p.description_fa as description_fa,
-      p.main_image_url as plant_image,
+      COALESCE(up.custom_image_url, p.main_image_url) as plant_image,
       p.watering_interval_days as default_watering_interval,
       p.watering_tips as watering_tips,
       p.light_requirement as light_requirement,
@@ -582,7 +583,7 @@ export const getPlantsNeedingWater = async (userId: number): Promise<UserPlant[]
       p.name as plant_name,
       p.name_fa as plant_name_fa,
       p.scientific_name as plant_scientific_name,
-      p.main_image_url as plant_image,
+      COALESCE(up.custom_image_url, p.main_image_url) as plant_image,
       g.name as garden_name
     FROM user_plants up
     INNER JOIN plants p ON up.plant_id = p.id

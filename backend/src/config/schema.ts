@@ -164,6 +164,7 @@ export const initializeDatabase = async (): Promise<void> => {
         
         -- اطلاعات شخصی‌سازی شده
         nickname VARCHAR(100),
+        custom_image_url TEXT,
         custom_watering_interval INTEGER,
         custom_fertilizer_interval INTEGER,
         notes TEXT,
@@ -185,6 +186,12 @@ export const initializeDatabase = async (): Promise<void> => {
       );
     `);
     console.log('✅ جدول user_plants ایجاد شد');
+
+    // افزودن ستون تصویر سفارشی در صورت نبود
+    await query(`
+      ALTER TABLE user_plants
+      ADD COLUMN IF NOT EXISTS custom_image_url TEXT
+    `);
 
     // ===================================
     // 9. Plant Images Table - تصاویر گیاهان (برای catalog)
