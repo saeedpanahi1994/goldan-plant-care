@@ -162,7 +162,7 @@ const BottomNavigation: React.FC = () => {
       id: 'chat',
       icon: MessageCircle,
       label: 'چت هوشمند',
-      path: '/chat'
+      path: '/smart-chat'
     }
   ];
 

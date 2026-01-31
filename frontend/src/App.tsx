@@ -15,6 +15,7 @@ import AnalysisScreen from './screens/AnalysisScreen';
 import PlantRecommendationScreen from './screens/PlantRecommendationScreen';
 import PlantIdentifyScreen from './screens/PlantIdentifyScreen';
 import PlantBankScreen from './screens/PlantBankScreen';
+import SmartChatScreen from './screens/SmartChatScreen';
 import LoginScreen from './screens/LoginScreen';
 import OTPVerifyScreen from './screens/OTPVerifyScreen';
 import './App.css';
@@ -191,6 +192,7 @@ const AppContent: React.FC = () => {
               <Route path="/analysis" element={<ProtectedRoute><AnalysisScreen /></ProtectedRoute>} />
               <Route path="/recommendation" element={<ProtectedRoute><PlantRecommendationScreen /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
+              <Route path="/smart-chat" element={<ProtectedRoute><SmartChatScreen /></ProtectedRoute>} />
               <Route path="/login" element={<Navigate to="/" replace />} />
               <Route path="/verify-otp" element={<Navigate to="/" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />

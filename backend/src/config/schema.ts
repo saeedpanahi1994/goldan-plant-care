@@ -302,6 +302,23 @@ export const initializeDatabase = async (): Promise<void> => {
     console.log('✅ ایندکس‌ها ایجاد شدند');
 
     // ===================================
+    // 14. Plant Chat History Table - تاریخچه چت گیاه
+    // ===================================
+    await query(`
+      CREATE TABLE IF NOT EXISTS plant_chat_history (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        plant_id INTEGER, -- Optional: link to generic plant or user plant if needed
+        plant_name VARCHAR(200),
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ جدول plant_chat_history ایجاد شد');
+    await query(`CREATE INDEX IF NOT EXISTS idx_plant_chat_user ON plant_chat_history(user_id);`);
+
+    // ===================================
     // Insert Default Plant Categories
     // ===================================
     await query(`

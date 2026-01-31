@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { ArrowRight, Droplets, Sun, Thermometer, Wind, ChevronDown, ChevronUp, Leaf, Plus, Check } from 'lucide-react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Droplets, Sun, Thermometer, Wind, ChevronDown, ChevronUp, Leaf, Plus, Check, Sparkles } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import PlantChatModal from '../components/PlantChatModal';
 
 const API_URL = 'http://130.185.76.46:4380/api';
 const SERVER_URL = 'http://130.185.76.46:4380';
@@ -78,6 +79,51 @@ const BackButton = styled.button`
 
   svg {
     color: #424242;
+  }
+`;
+
+const AIButton = styled.button`
+  background: linear-gradient(135deg, #7C4DFF 0%, #651FFF 100%);
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(124, 77, 255, 0.3);
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: shimmer 3s infinite;
+  }
+
+  @keyframes shimmer {
+    100% { transform: translateX(100%); }
+  }
+
+  &:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 16px rgba(124, 77, 255, 0.4);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  svg {
+    color: white;
   }
 `;
 
@@ -519,6 +565,7 @@ const ErrorText = styled.p`
 
 const PlantDetailScreen: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const source = searchParams.get('source'); // 'garden' or null (plant-bank)
@@ -530,12 +577,22 @@ const PlantDetailScreen: React.FC = () => {
   const [addingToGarden, setAddingToGarden] = useState(false);
   const [addedToGarden, setAddedToGarden] = useState(false);
   const [isFromGarden, setIsFromGarden] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
     watering: false,
     light: false,
     humidity: false,
     fertilizer: false,
   });
+
+  useEffect(() => {
+    // Check if we should open chat automatically
+    if (location.state && (location.state as any).openChat) {
+      setIsChatOpen(true);
+      // Clear the state so it doesn't reopen on refresh if we navigation works that way
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   useEffect(() => {
     const fetchPlantDetails = async () => {
@@ -751,6 +808,9 @@ const PlantDetailScreen: React.FC = () => {
           <ArrowRight size={20} />
         </BackButton>
         <HeaderTitle>مشخصات گیاه</HeaderTitle>
+        <AIButton onClick={() => setIsChatOpen(true)}>
+          <Sparkles size={20} />
+        </AIButton>
       </Header>
 
       <ImageSection>
@@ -949,6 +1009,14 @@ const PlantDetailScreen: React.FC = () => {
           </>
         )}
       </AddToMyGardenButton>
+
+      <PlantChatModal
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        plantName={plant.name_fa}
+        plantId={plant.id}
+        plantContext={plant}
+      />
     </ScreenContainer>
   );
 };

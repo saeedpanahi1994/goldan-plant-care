@@ -2,7 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { User, Settings, Info, Share2, Shield, LogOut, Phone, Crown } from 'lucide-react';
+import { User, Settings, Info, Share2, Shield, LogOut, Phone, Crown, Bot } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const ScreenContainer = styled.div`
@@ -197,6 +197,12 @@ const ProfileScreen: React.FC = () => {
           <Crown size={20} style={{ color: '#FFD700' }} />
           <MenuText>وضعیت اشتراک</MenuText>
           <StatusBadge>نسخه رایگان</StatusBadge>
+        </MenuItem>
+
+        <MenuItem onClick={() => navigate('/smart-chat')}>
+          <Bot size={20} style={{ color: '#4CAF50' }} />
+          <MenuText>تاریخچه چت هوشمند</MenuText>
+          <MenuArrow>‹</MenuArrow>
         </MenuItem>
 
         <MenuItem onClick={() => handleMenuClick('درباره ما')}>

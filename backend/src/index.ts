@@ -20,6 +20,7 @@ import authRoutes from './routes/auth';
 import notificationRoutes from './routes/notifications';
 import plantBankRoutes from './routes/plantBank';
 import diagnosisRoutes from './routes/diagnosis';
+import chatRoutes from './routes/chat';
 
 const app = express();
 const PORT = process.env.PORT || 4380;
@@ -99,6 +100,7 @@ app.use('/api/gardens', gardenRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/plant-bank', plantBankRoutes);
 app.use('/api/diagnosis', diagnosisRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
