@@ -561,7 +561,7 @@ const PlantDetailScreen: React.FC = () => {
               scientific_name: userPlant.plant_scientific_name || '',
               description_fa: userPlant.description_fa || '',
               main_image_url: getFullImageUrl(userPlant.plant_image),
-              additional_images: [],
+              additional_images: userPlant.additional_images ? userPlant.additional_images.map(getFullImageUrl) : [],
               watering_interval_days: userPlant.effective_watering_interval || userPlant.default_watering_interval || 7,
               watering_tips: userPlant.watering_tips || '',
               light_requirement: userPlant.light_requirement || 'indirect',

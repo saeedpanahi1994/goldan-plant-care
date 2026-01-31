@@ -78,6 +78,7 @@ export interface UserPlant {
   plant_name_fa?: string;
   plant_scientific_name?: string | null;
   plant_image?: string | null;
+  additional_images?: string[];
 }
 
 export interface CareActivity {
@@ -334,7 +335,12 @@ export const getUserPlantById = async (userPlantId: number, userId: number): Pro
       p.difficulty_level as difficulty_level,
       p.is_toxic_to_pets as is_toxic_to_pets,
       p.is_air_purifying as is_air_purifying,
-      COALESCE(up.custom_watering_interval, p.watering_interval_days) as effective_watering_interval
+      COALESCE(up.custom_watering_interval, p.watering_interval_days) as effective_watering_interval,
+      (
+        SELECT COALESCE(array_agg(image_url), '{}')
+        FROM plant_images
+        WHERE plant_id = p.id
+      ) as additional_images
     FROM user_plants up
     INNER JOIN plants p ON up.plant_id = p.id
     WHERE up.id = $1 AND up.user_id = $2

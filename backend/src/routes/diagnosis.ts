@@ -506,6 +506,21 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
       ]);
 
       plantId = newPlant.rows[0].id;
+
+      // ذخیره تصاویر اضافی در جدول plant_images
+      if (plantData.additionalImages && Array.isArray(plantData.additionalImages)) {
+        for (const imgUrl of plantData.additionalImages) {
+          // تبدیل مسیر موقت به مسیر دائمی (چون فایل قبلاً در هر دو مسیر ذخیره شده است)
+          // مسیر ورودی مثلاً: /uploads/identified/filename.jpg
+          // مسیر خروجی: /storage/plant/filename.jpg
+          const permanentUrl = imgUrl.replace('/uploads/identified/', '/storage/plant/');
+          
+          await query(
+            'INSERT INTO plant_images (plant_id, image_url, is_main) VALUES ($1, $2, $3)',
+            [plantId, permanentUrl, false]
+          );
+        }
+      }
     }
 
     // حالا گیاه را به باغچه کاربر اضافه می‌کنیم
