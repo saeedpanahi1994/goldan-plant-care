@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Bell, Trash2, Droplets, Check } from 'lucide-react';
 
@@ -85,6 +85,17 @@ const PlantImage = styled.img`
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background-color: #e8f5e9;
+`;
+
+const PlaceholderImage = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  font-size: 40px;
 `;
 
 const PlantInfo = styled.div`
@@ -455,12 +466,26 @@ const PlantCard: React.FC<PlantCardProps> = ({
   const status = getWateringStatus();
   const statusText = getStatusText();
   const showConfirmButton = shouldShowConfirmButton();
+  const [imageError, setImageError] = useState(false);
+
+  const handleImageError = () => {
+    console.log('Image load error for:', image);
+    setImageError(true);
+  };
 
   return (
     <CardContainer onClick={onCardClick}>
       <CardContent>
         <PlantImageContainer>
-          <PlantImage src={image} alt={name} />
+          {imageError ? (
+            <PlaceholderImage>🌱</PlaceholderImage>
+          ) : (
+            <PlantImage 
+              src={image} 
+              alt={name} 
+              onError={handleImageError}
+            />
+          )}
         </PlantImageContainer>
         <PlantInfo>
           <PlantName>{name}</PlantName>
