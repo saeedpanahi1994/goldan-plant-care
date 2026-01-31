@@ -21,11 +21,20 @@ export interface PlantIdentificationResult {
   confidence: number;
   // فیلدهای اضافی برای ذخیره در دیتابیس
   watering_interval_days: number;
+  watering_tips: string;
   light_requirement: string;
+  light_description: string;
   min_temperature: number;
   max_temperature: number;
+  ideal_temperature: number;
+  temperature_tips: string;
   humidity_level: string;
+  humidity_tips: string;
   fertilizer_interval_days: number;
+  fertilizer_type: string;
+  fertilizer_tips: string;
+  soil_type: string;
+  soil_tips: string;
   difficulty_level: string;
   is_toxic_to_pets: boolean;
   is_air_purifying: boolean;

@@ -69,11 +69,20 @@ interface PlantIdentificationResult {
   confidence: number;
   // فیلدهای اضافی برای ذخیره در دیتابیس
   watering_interval_days: number;
+  watering_tips: string;
   light_requirement: string;
+  light_description: string;
   min_temperature: number;
   max_temperature: number;
+  ideal_temperature: number;
+  temperature_tips: string;
   humidity_level: string;
+  humidity_tips: string;
   fertilizer_interval_days: number;
+  fertilizer_type: string;
+  fertilizer_tips: string;
+  soil_type: string;
+  soil_tips: string;
   difficulty_level: string;
   is_toxic_to_pets: boolean;
   is_air_purifying: boolean;
@@ -106,11 +115,20 @@ const createPrompt = () => `
   "careTips": ["نکته مراقبتی 1", "نکته مراقبتی 2", "نکته مراقبتی 3"],
   "confidence": 0.85,
   "watering_interval_days": 7,
+  "watering_tips": "نحوه صحیح آبیاری این گیاه به فارسی (1-2 جمله خلاصه)",
   "light_requirement": "indirect",
+  "light_description": "توضیح نیاز نوری گیاه به فارسی (1-2 جمله خلاصه)",
   "min_temperature": 15,
   "max_temperature": 28,
+  "ideal_temperature": 22,
+  "temperature_tips": "توضیح دمای مناسب به فارسی (1 جمله)",
   "humidity_level": "medium",
+  "humidity_tips": "توضیح رطوبت مناسب به فارسی (1 جمله)",
   "fertilizer_interval_days": 30,
+  "fertilizer_type": "نوع کود مناسب (مثل: کود مایع همه‌کاره)",
+  "fertilizer_tips": "نحوه کوددهی به فارسی (1 جمله)",
+  "soil_type": "نوع خاک مناسب (مثل: خاک غنی و زهکش‌دار)",
+  "soil_tips": "توضیح خاک مناسب به فارسی (1-2 جمله)",
   "difficulty_level": "easy",
   "is_toxic_to_pets": false,
   "is_air_purifying": true
@@ -123,72 +141,96 @@ const createPrompt = () => `
 - confidence عددی بین 0 تا 1 است که نشان‌دهنده اطمینان از شناسایی است
 - watering_interval_days باید عدد صحیح باشد (تعداد روز بین آبیاری‌ها)
 - fertilizer_interval_days باید عدد صحیح باشد (تعداد روز بین کوددهی‌ها)
+- همه توضیحات و tips باید به فارسی و خلاصه باشند
 `;
 
-// تابع دانلود تصاویر از Google (اختیاری - در صورت خطا از تصویر کاربر استفاده می‌شود)
-const downloadPlantImages = async (plantName: string, plantNameEn: string): Promise<string[]> => {
-  const downloadedImages: string[] = [];
-  
-  const googleApiKey = process.env.GOOGLE_SEARCH_API_KEY;
-  const googleCx = process.env.GOOGLE_SEARCH_CX;
-  
-  // اگر API key موجود نیست، مستقیم خالی برگردان
-  if (!googleApiKey || !googleCx) {
-    console.log('⚠️ Google Search API تنظیم نشده - فقط از تصویر کاربر استفاده می‌شود');
-    return [];
-  }
-  
+// تابع دانلود تصویر از Wikipedia
+const downloadPlantImageFromWikipedia = async (plantName: string, scientificName: string): Promise<string | null> => {
   try {
-    console.log('🔍 جستجوی تصاویر با Google Custom Search...');
+    console.log('🔍 جستجوی تصویر در Wikipedia...');
     
-    // جستجوی تصویر با نام انگلیسی گیاه
-    const searchQuery = `${plantNameEn} plant`;
-    const googleSearchUrl = `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${googleCx}&q=${encodeURIComponent(searchQuery)}&searchType=image&num=3&imgSize=medium&safe=active`;
+    // اول با نام علمی جستجو می‌کنیم (دقیق‌تر است)
+    const searchTerms = [scientificName, plantName].filter(Boolean);
     
-    const searchResponse = await axios.get(googleSearchUrl, { timeout: 10000 });
-    
-    if (searchResponse.data?.items && searchResponse.data.items.length > 0) {
-      // دانلود 2 تصویر اول
-      for (let i = 0; i < Math.min(2, searchResponse.data.items.length); i++) {
-        const item = searchResponse.data.items[i];
-        const imageUrl = item.link;
+    for (const searchTerm of searchTerms) {
+      try {
+        // جستجو در Wikipedia برای یافتن صفحه
+        const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(searchTerm)}&format=json&srlimit=1`;
         
-        try {
-          console.log(`📥 دانلود تصویر ${i + 1}...`);
-          
-          const imageResponse = await axios.get(imageUrl, {
-            responseType: 'arraybuffer',
-            timeout: 8000,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-          });
-          
-          if (imageResponse.status === 200 && imageResponse.data) {
-            const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
-            const ext = contentType.includes('png') ? '.png' : contentType.includes('webp') ? '.webp' : '.jpg';
-            
-            const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
-            const filepath = path.join(identifiedImagesDir, filename);
-            
-            fs.writeFileSync(filepath, imageResponse.data);
-            downloadedImages.push(`/uploads/identified/${filename}`);
-            console.log(`✅ تصویر ${i + 1} ذخیره شد`);
+        const searchResponse = await axios.get(searchUrl, {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'GoldanPlantCareApp/1.0 (Plant identification app)'
           }
-        } catch (downloadErr: any) {
-          console.log(`⚠️ خطا در دانلود تصویر ${i + 1} - ادامه بدون این تصویر`);
+        });
+        
+        if (!searchResponse.data?.query?.search?.length) {
+          continue;
         }
+        
+        const pageTitle = searchResponse.data.query.search[0].title;
+        console.log(`📄 صفحه یافت شد: ${pageTitle}`);
+        
+        // دریافت تصاویر صفحه
+        const imageUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=pageimages&format=json&pithumbsize=500`;
+        
+        const imageResponse = await axios.get(imageUrl, {
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'GoldanPlantCareApp/1.0 (Plant identification app)'
+          }
+        });
+        
+        const pages = imageResponse.data?.query?.pages;
+        if (!pages) continue;
+        
+        const pageId = Object.keys(pages)[0];
+        const thumbnailUrl = pages[pageId]?.thumbnail?.source;
+        
+        if (!thumbnailUrl) {
+          console.log('⚠️ تصویر در این صفحه یافت نشد');
+          continue;
+        }
+        
+        console.log(`📥 دانلود تصویر از Wikipedia...`);
+        
+        // دانلود تصویر
+        const downloadResponse = await axios.get(thumbnailUrl, {
+          responseType: 'arraybuffer',
+          timeout: 15000,
+          headers: {
+            'User-Agent': 'GoldanPlantCareApp/1.0 (Plant identification app)'
+          }
+        });
+        
+        if (downloadResponse.status === 200 && downloadResponse.data) {
+          const contentType = downloadResponse.headers['content-type'] || 'image/jpeg';
+          let ext = '.jpg';
+          if (contentType.includes('png')) ext = '.png';
+          else if (contentType.includes('webp')) ext = '.webp';
+          else if (contentType.includes('gif')) ext = '.gif';
+          
+          const filename = `wiki-${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+          const filepath = path.join(identifiedImagesDir, filename);
+          
+          fs.writeFileSync(filepath, downloadResponse.data);
+          console.log(`✅ تصویر Wikipedia ذخیره شد: ${filename}`);
+          
+          return `/uploads/identified/${filename}`;
+        }
+      } catch (searchErr: any) {
+        console.log(`⚠️ خطا در جستجوی "${searchTerm}": ${searchErr.message}`);
+        continue;
       }
     }
     
-    console.log(`📸 تعداد تصاویر دانلود شده: ${downloadedImages.length}`);
+    console.log('⚠️ تصویری در Wikipedia یافت نشد');
+    return null;
     
   } catch (error: any) {
-    // در صورت هر خطایی، فقط لاگ کن و آرایه خالی برگردان
-    console.log('⚠️ Google Search در دسترس نیست - فقط از تصویر کاربر استفاده می‌شود');
+    console.log('⚠️ خطا در دانلود از Wikipedia:', error.message);
+    return null;
   }
-  
-  return downloadedImages;
 };
 
 // تابع شناسایی گیاه با Gemini
@@ -230,11 +272,17 @@ const identifyPlantWithGemini = async (
     // پارس JSON
     const plantData = JSON.parse(jsonStr);
     
-    // دانلود تصاویر اضافی از اینترنت
-    const additionalImages = await downloadPlantImages(
-      plantData.name, 
-      plantData.name_en || plantData.scientificName
+    // دانلود تصویر از Wikipedia
+    const wikipediaImage = await downloadPlantImageFromWikipedia(
+      plantData.name_en || plantData.scientificName,
+      plantData.scientificName
     );
+    
+    // ساخت لیست تصاویر اضافی
+    const additionalImages: string[] = [];
+    if (wikipediaImage) {
+      additionalImages.push(wikipediaImage);
+    }
     
     // ساخت URL تصویر کاربر
     const userImageUrl = `/uploads/${path.basename(imagePath)}`;
@@ -252,11 +300,20 @@ const identifyPlantWithGemini = async (
       careTips: plantData.careTips,
       confidence: plantData.confidence || 0.8,
       watering_interval_days: plantData.watering_interval_days || 7,
+      watering_tips: plantData.watering_tips || plantData.needs?.water || '',
       light_requirement: plantData.light_requirement || 'indirect',
+      light_description: plantData.light_description || plantData.needs?.light || '',
       min_temperature: plantData.min_temperature || 15,
       max_temperature: plantData.max_temperature || 28,
+      ideal_temperature: plantData.ideal_temperature || 22,
+      temperature_tips: plantData.temperature_tips || plantData.needs?.temperature || '',
       humidity_level: plantData.humidity_level || 'medium',
+      humidity_tips: plantData.humidity_tips || plantData.needs?.humidity || '',
       fertilizer_interval_days: plantData.fertilizer_interval_days || 30,
+      fertilizer_type: plantData.fertilizer_type || 'کود مایع همه‌کاره',
+      fertilizer_tips: plantData.fertilizer_tips || '',
+      soil_type: plantData.soil_type || 'خاک غنی و زهکش‌دار',
+      soil_tips: plantData.soil_tips || '',
       difficulty_level: plantData.difficulty_level || 'medium',
       is_toxic_to_pets: plantData.is_toxic_to_pets || false,
       is_air_purifying: plantData.is_air_purifying || false,
@@ -382,11 +439,13 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
       const newPlant = await query(`
         INSERT INTO plants (
           name, name_fa, scientific_name, description_fa,
-          main_image_url, watering_interval_days,
-          light_requirement, min_temperature, max_temperature,
-          humidity_level, fertilizer_interval_days,
+          main_image_url, watering_interval_days, watering_tips,
+          light_requirement, light_description,
+          min_temperature, max_temperature, ideal_temperature, temperature_tips,
+          humidity_level, humidity_tips,
+          fertilizer_interval_days, fertilizer_type, fertilizer_tips,
           difficulty_level, is_toxic_to_pets, is_air_purifying
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         RETURNING id
       `, [
         plantData.name_fa, // name
@@ -395,11 +454,18 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
         plantData.description,
         plantData.userImageUrl,
         plantData.watering_interval_days,
+        plantData.watering_tips,
         plantData.light_requirement,
+        plantData.light_description,
         plantData.min_temperature,
         plantData.max_temperature,
+        plantData.ideal_temperature,
+        plantData.temperature_tips,
         plantData.humidity_level,
+        plantData.humidity_tips,
         plantData.fertilizer_interval_days,
+        plantData.fertilizer_type,
+        plantData.fertilizer_tips,
         plantData.difficulty_level,
         plantData.is_toxic_to_pets,
         plantData.is_air_purifying
