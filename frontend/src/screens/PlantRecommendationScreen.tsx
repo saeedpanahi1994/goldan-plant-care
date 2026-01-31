@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { 
-  User, 
-  Headphones, 
-  ShoppingCart, 
   ArrowRight, 
   ChevronLeft,
   Check
 } from 'lucide-react';
+import axios from 'axios';
+import Header from '../components/Header';
 
 // --- Styled Components ---
 
@@ -19,49 +18,14 @@ const ScreenContainer = styled.div`
   font-family: 'Vazirmatn', sans-serif;
 `;
 
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background-color: #ffffff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-`;
+const API_URL = 'http://130.185.76.46:4380/api';
+const SERVER_URL = 'http://130.185.76.46:4380';
 
-const HeaderIcons = styled.div`
-  display: flex;
-  gap: 16px;
-  
-  svg {
-    color: #424242;
-    cursor: pointer;
-    transition: color 0.2s;
-    
-    &:hover {
-      color: #2e7d32;
-    }
-
-    &:first-child {
-      color: #ef5350; /* Red profile icon */
-    }
-  }
-`;
-
-const HeaderTitleContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`;
-
-const HeaderTitle = styled.h1`
-  font-size: 16px;
-  font-weight: 700;
-  color: #000;
-  margin: 0;
-`;
+const getFullImageUrl = (imagePath: string | null | undefined): string => {
+  if (!imagePath) return 'https://via.placeholder.com/400x400?text=گیاه';
+  if (imagePath.startsWith('http')) return imagePath;
+  return `${SERVER_URL}${imagePath}`;
+};
 
 const BackButton = styled.button`
   background: none;
@@ -71,6 +35,14 @@ const BackButton = styled.button`
   display: flex;
   align-items: center;
   color: #000;
+`;
+
+const BackRow = styled.div`
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 16px;
 `;
 
 const Content = styled.div`
@@ -255,11 +227,34 @@ const ArrowIcon = styled.div`
 const PlantRecommendationScreen: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [plants, setPlants] = useState<any[]>([]);
   const [selections, setSelections] = useState({
     location: '',
     light: '',
     climate: ''
   });
+
+  useEffect(() => {
+    const fetchPlants = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`${API_URL}/plant-bank`);
+        if (response.data?.success) {
+          setPlants(response.data.data?.plants || []);
+        } else {
+          setPlants([]);
+        }
+      } catch (error) {
+        console.error('خطا در دریافت بانک گیاهان:', error);
+        setPlants([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlants();
+  }, []);
 
   const handleSelect = (key: string, value: string) => {
     setSelections(prev => ({ ...prev, [key]: value }));
@@ -274,33 +269,36 @@ const PlantRecommendationScreen: React.FC = () => {
     else navigate(-1);
   };
 
-  // Mock Data for Results
-  const recommendedPlants = [
-    {
-      id: 1,
-      name: 'فوشیا',
-      desc: 'گل فوشیا یا زنگوله‌ای با نام انگلیسی Fuchsia...',
-      image: 'https://images.unsplash.com/photo-1518563259397-592f6816c233?w=200&h=200&fit=crop'
-    },
-    {
-      id: 2,
-      name: 'دیسکوریا الفانتیپس (پافیلی)',
-      desc: 'دیسکوریا الفانتیپس یا گیاه پافیلی...',
-      image: 'https://images.unsplash.com/photo-1596526131083-e8c633c948d2?w=200&h=200&fit=crop'
-    },
-    {
-      id: 3,
-      name: 'آرالیای برگ پهن ژاپنی',
-      desc: 'آرالیا برگ پهن ژاپنی در محیط مرطوب...',
-      image: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=200&h=200&fit=crop'
-    },
-    {
-      id: 4,
-      name: 'گیاه پول چینی',
-      desc: 'گیاه پول چینی یا پیله‌آ...',
-      image: 'https://images.unsplash.com/photo-1612363228165-69227303f46e?w=200&h=200&fit=crop'
-    }
-  ];
+  const recommendedPlants = useMemo(() => {
+    const lightMap: Record<string, string[]> = {
+      high: ['direct', 'indirect', 'behind_curtain'],
+      medium: ['indirect', 'behind_curtain'],
+      low: ['low_light']
+    };
+
+    const humidityMap: Record<string, string[]> = {
+      humid: ['high'],
+      moderate: ['medium'],
+      dry: ['low']
+    };
+
+    const lightAllowed = lightMap[selections.light] || [];
+    const humidityAllowed = humidityMap[selections.climate] || [];
+
+    const scored = (plants || []).map((plant) => {
+      let score = 0;
+      if (lightAllowed.length && lightAllowed.includes(plant.light_requirement)) score += 2;
+      if (humidityAllowed.length && humidityAllowed.includes(plant.humidity_level)) score += 2;
+      if (selections.location === 'indoor' && plant.light_requirement !== 'direct') score += 1;
+      if (selections.location === 'outdoor' && plant.light_requirement === 'direct') score += 1;
+      return { plant, score };
+    });
+
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.plant)
+      .slice(0, 12);
+  }, [plants, selections]);
 
   const renderStepContent = () => {
     switch (step) {
@@ -395,18 +393,34 @@ const PlantRecommendationScreen: React.FC = () => {
               با توجه به شرایط گیاهان زیر برای نگهداری به شما توصیه میشود
             </ResultsTitle>
             <PlantList>
-              {recommendedPlants.map(plant => (
-                <PlantCard key={plant.id} onClick={() => navigate(`/plant/${plant.id}`)}>
+              {loading ? (
+                <PlantCard>
+                  <PlantInfo>
+                    <PlantName>در حال بارگذاری...</PlantName>
+                    <PlantDesc>لطفاً صبر کنید</PlantDesc>
+                  </PlantInfo>
+                </PlantCard>
+              ) : recommendedPlants.length === 0 ? (
+                <PlantCard>
+                  <PlantInfo>
+                    <PlantName>نتیجه‌ای پیدا نشد</PlantName>
+                    <PlantDesc>تنظیمات را تغییر دهید تا پیشنهادهای بیشتری ببینید.</PlantDesc>
+                  </PlantInfo>
+                </PlantCard>
+              ) : (
+                recommendedPlants.map(plant => (
+                  <PlantCard key={plant.id} onClick={() => navigate(`/plant-detail/${plant.id}`)}>
                   <ArrowIcon>
                     <ChevronLeft size={24} />
                   </ArrowIcon>
                   <PlantInfo>
-                    <PlantName>{plant.name}</PlantName>
-                    <PlantDesc>{plant.desc}</PlantDesc>
+                    <PlantName>{plant.name_fa || plant.name}</PlantName>
+                    <PlantDesc>{plant.description_fa || 'اطلاعات بیشتر در صفحه گیاه'}</PlantDesc>
                   </PlantInfo>
-                  <PlantThumb src={plant.image} alt={plant.name} />
+                  <PlantThumb src={getFullImageUrl(plant.main_image_url)} alt={plant.name_fa || plant.name} />
                 </PlantCard>
-              ))}
+                ))
+              )}
             </PlantList>
           </>
         );
@@ -417,21 +431,14 @@ const PlantRecommendationScreen: React.FC = () => {
 
   return (
     <ScreenContainer>
-      <Header>
-        <HeaderTitleContainer>
-          <HeaderTitle>پیشنهاد گیاه</HeaderTitle>
+      <Header title="پیشنهاد گیاه" />
+
+      <Content>
+        <BackRow>
           <BackButton onClick={prevStep}>
             <ArrowRight size={24} />
           </BackButton>
-        </HeaderTitleContainer>
-        <HeaderIcons>
-          <User size={24} />
-          <Headphones size={24} />
-          <ShoppingCart size={24} />
-        </HeaderIcons>
-      </Header>
-
-      <Content>
+        </BackRow>
         {renderStepContent()}
       </Content>
     </ScreenContainer>

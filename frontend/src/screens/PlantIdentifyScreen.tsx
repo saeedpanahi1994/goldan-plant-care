@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { ArrowRight, Camera, Upload, Loader2, CheckCircle, AlertCircle, Droplets, Sun, Thermometer, Wind, Leaf, X, Image, Plus, Heart, ShieldAlert } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { identifyPlantFromFile, identifyPlantFromBase64, PlantIdentificationResult, addIdentifiedPlantToGarden, getDefaultGarden } from '../services/plantApiService';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { identifyPlantFromFile, identifyPlantFromBase64, identifyDiseaseFromFile, identifyDiseaseFromBase64, PlantIdentificationResult, addIdentifiedPlantToGarden, getDefaultGarden } from '../services/plantApiService';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import HeaderComponent from '../components/Header';
 
@@ -749,6 +749,8 @@ const ErrorHint = styled.p`
 // =====================
 const PlantIdentifyScreen: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDiseaseMode = location.pathname.includes('/diagnosis/disease');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -918,10 +920,14 @@ const PlantIdentifyScreen: React.FC = () => {
       
       // اگر از دوربین Capacitor عکس گرفته شده، از Base64 استفاده کن
       if (base64Image && !selectedFile) {
-        response = await identifyPlantFromBase64(base64Image, 'image/jpeg');
+        response = isDiseaseMode
+          ? await identifyDiseaseFromBase64(base64Image, 'image/jpeg')
+          : await identifyPlantFromBase64(base64Image, 'image/jpeg');
       } else if (selectedFile) {
         // اگر فایل از input انتخاب شده
-        response = await identifyPlantFromFile(selectedFile);
+        response = isDiseaseMode
+          ? await identifyDiseaseFromFile(selectedFile)
+          : await identifyPlantFromFile(selectedFile);
       } else {
         setError('لطفاً ابتدا یک عکس انتخاب کنید');
         setIsLoading(false);
@@ -931,7 +937,7 @@ const PlantIdentifyScreen: React.FC = () => {
       if (response.success && response.data) {
         setResult(response.data);
       } else {
-        setError(response.message || 'خطا در شناسایی گیاه');
+        setError(response.message || (isDiseaseMode ? 'خطا در شناسایی بیماری گیاه' : 'خطا در شناسایی گیاه'));
       }
     } catch (err) {
       setError('خطا در اتصال به سرور. لطفاً دوباره تلاش کنید.');
@@ -951,13 +957,13 @@ const PlantIdentifyScreen: React.FC = () => {
 
   return (
     <ScreenContainer>
-      <HeaderComponent title="شناسایی گیاه" />
+      <HeaderComponent title={isDiseaseMode ? 'شناسایی بیماری گیاه' : 'شناسایی گیاه'} />
       
       <Header>
         <BackButton onClick={() => navigate(-1)}>
           <ArrowRight size={24} />
         </BackButton>
-        <HeaderTitle>شناسایی گیاه</HeaderTitle>
+        <HeaderTitle>{isDiseaseMode ? 'شناسایی بیماری گیاه' : 'شناسایی گیاه'}</HeaderTitle>
       </Header>
 
       <Content>
@@ -967,7 +973,7 @@ const PlantIdentifyScreen: React.FC = () => {
             <LoadingIcon>
               <Loader2 size={48} />
             </LoadingIcon>
-            <LoadingText>در حال شناسایی گیاه...</LoadingText>
+            <LoadingText>{isDiseaseMode ? 'در حال شناسایی بیماری گیاه...' : 'در حال شناسایی گیاه...'}</LoadingText>
             <LoadingHint>هوش مصنوعی در حال تحلیل تصویر است</LoadingHint>
             <LoadingBar />
           </LoadingContainer>
@@ -1181,9 +1187,11 @@ const PlantIdentifyScreen: React.FC = () => {
         {/* Upload Section */}
         {!isLoading && !result && !error && (
           <UploadSection>
-            <UploadTitle>عکس گیاه خود را آپلود کنید</UploadTitle>
+            <UploadTitle>{isDiseaseMode ? 'عکس بخش بیمار گیاه را آپلود کنید' : 'عکس گیاه خود را آپلود کنید'}</UploadTitle>
             <UploadDescription>
-              یک عکس واضح از گیاه خود بگیرید تا هوش مصنوعی آن را شناسایی کند
+              {isDiseaseMode
+                ? 'از قسمت آسیب‌دیده یا بیمار عکس واضح بگیرید تا درمان مناسب پیشنهاد شود'
+                : 'یک عکس واضح از گیاه خود بگیرید تا هوش مصنوعی آن را شناسایی کند'}
             </UploadDescription>
 
             {/* Hidden file input for fallback */}
@@ -1232,7 +1240,7 @@ const PlantIdentifyScreen: React.FC = () => {
                   onClick={handleIdentify}
                 >
                   <Leaf size={20} />
-                  شناسایی گیاه
+                  {isDiseaseMode ? 'شناسایی بیماری' : 'شناسایی گیاه'}
                 </ActionButton>
                 <ActionButton onClick={handleRemoveImage}>
                   <X size={20} />

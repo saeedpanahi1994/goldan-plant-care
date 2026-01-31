@@ -57,4 +57,4 @@ git push
 
 مثلا
 
-git add .; git commit -m "feat: ذخیره تصاویر Wikipedia در mainPic و pics برای نمایش در باغچه"; git push
+git add .; git commit -m "feat: dbug ones"; git push

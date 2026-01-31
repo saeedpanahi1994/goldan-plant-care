@@ -5,6 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const API_URL = 'http://130.185.76.46:4380/api';
+const SERVER_URL = 'http://130.185.76.46:4380';
+
+const getFullImageUrl = (imagePath: string | null | undefined): string => {
+  if (!imagePath) return 'https://via.placeholder.com/400x400?text=گیاه';
+  if (imagePath.startsWith('http')) return imagePath;
+  return `${SERVER_URL}${imagePath}`;
+};
 
 interface Plant {
   id: number;
@@ -427,7 +434,7 @@ const PlantBankScreen: React.FC = () => {
                 <PlantCard key={plant.id} onClick={() => handlePlantClick(plant.id)}>
                   <PlantImageContainer className="image-loading">
                     <PlantImage 
-                      src={plant.main_image_url} 
+                      src={getFullImageUrl(plant.main_image_url)} 
                       alt={plant.name_fa}
                       loading="lazy"
                       className="loading"

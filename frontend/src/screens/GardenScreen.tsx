@@ -11,6 +11,9 @@ import Header from '../components/Header';
 
 const API_URL = 'http://130.185.76.46:4380/api';
 const SERVER_URL = 'http://130.185.76.46:4380';
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+const toStartOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
 // Helper function to get full image URL
 const getFullImageUrl = (imagePath: string | null): string => {
@@ -351,7 +354,7 @@ const GardenScreen: React.FC = () => {
         const formattedPlants: Plant[] = userPlants.map((plant) => {
           const nextWatering = new Date(plant.next_watering_at);
           const now = new Date();
-          const daysUntilWatering = Math.ceil((nextWatering.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const daysUntilWatering = Math.round((toStartOfDay(nextWatering).getTime() - toStartOfDay(now).getTime()) / MS_PER_DAY);
           
           return {
             id: plant.id.toString(),

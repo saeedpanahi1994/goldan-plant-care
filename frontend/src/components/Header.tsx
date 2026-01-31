@@ -2,6 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { User, Bell, ShoppingCart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useNotification } from '../context/NotificationContext';
 
 const HeaderContainer = styled.header`
   display: flex;
@@ -112,6 +113,10 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ title, showNotificationBadge }) => {
   const navigate = useNavigate();
+  const { openModal, hasReminders } = useNotification();
+
+  // Prefer context state if available, otherwise fallback to prop
+  const shouldShowBadge = hasReminders || showNotificationBadge;
 
   return (
     <HeaderContainer>
@@ -121,10 +126,14 @@ const Header: React.FC<HeaderProps> = ({ title, showNotificationBadge }) => {
         <ActionButton onClick={() => navigate('/profile')}>
           <User size={18} />
         </ActionButton>
-        <ActionButton>
-          <NotificationBadge>
-            <Bell size={18} />
-          </NotificationBadge>
+        <ActionButton onClick={openModal}>
+          {shouldShowBadge ? (
+            <NotificationBadge>
+              <Bell size={18} />
+            </NotificationBadge>
+          ) : (
+             <Bell size={18} />
+          )}
         </ActionButton>
         <ActionButton>
           <ShoppingCart size={18} />

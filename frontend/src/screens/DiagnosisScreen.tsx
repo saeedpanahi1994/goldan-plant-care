@@ -31,8 +31,8 @@ const DiagnosisScreen: React.FC = () => {
   };
 
   const handleDiseaseClick = () => {
-    // Navigate to disease detection (همان صفحه شناسایی)
-    navigate('/identify');
+    // Navigate to disease detection
+    navigate('/diagnosis/disease');
   };
 
   const handleLightClick = () => {

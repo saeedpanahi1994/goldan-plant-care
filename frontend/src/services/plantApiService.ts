@@ -102,6 +102,58 @@ export const identifyPlantFromFile = async (
   }
 };
 
+// تابع شناسایی بیماری گیاه از تصویر Base64
+export const identifyDiseaseFromBase64 = async (
+  base64Image: string,
+  mimeType: string = 'image/jpeg'
+): Promise<ApiResponse<PlantIdentificationResult>> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/diagnosis/disease-base64`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: base64Image,
+        mimeType: mimeType,
+      }),
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('خطا در ارسال تصویر به سرور:', error);
+    return {
+      success: false,
+      message: 'خطا در اتصال به سرور. لطفاً اتصال اینترنت خود را بررسی کنید.',
+    };
+  }
+};
+
+// تابع شناسایی بیماری گیاه از فایل
+export const identifyDiseaseFromFile = async (
+  file: File
+): Promise<ApiResponse<PlantIdentificationResult>> => {
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await fetch(`${API_BASE_URL}/api/diagnosis/disease`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('خطا در ارسال تصویر به سرور:', error);
+    return {
+      success: false,
+      message: 'خطا در اتصال به سرور. لطفاً اتصال اینترنت خود را بررسی کنید.',
+    };
+  }
+};
+
 // تابع تبدیل فایل به Base64
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {

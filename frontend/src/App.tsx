@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import styled from 'styled-components';
 import { App as CapApp } from '@capacitor/app';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import BottomNavigation from './components/BottomNavigation';
 import HomeScreen from './screens/HomeScreen';
 import DiagnosisScreen from './screens/DiagnosisScreen';
@@ -182,6 +183,7 @@ const AppContent: React.FC = () => {
               <Route path="/" element={<ProtectedRoute><GardenScreen /></ProtectedRoute>} />
               <Route path="/home" element={<ProtectedRoute><HomeScreen /></ProtectedRoute>} />
               <Route path="/diagnosis" element={<ProtectedRoute><DiagnosisScreen /></ProtectedRoute>} />
+              <Route path="/diagnosis/disease" element={<ProtectedRoute><PlantIdentifyScreen /></ProtectedRoute>} />
               <Route path="/identify" element={<ProtectedRoute><PlantIdentifyScreen /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchScreen /></ProtectedRoute>} />
               <Route path="/garden" element={<ProtectedRoute><GardenScreen /></ProtectedRoute>} />
@@ -217,9 +219,11 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
+      <NotificationProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }
