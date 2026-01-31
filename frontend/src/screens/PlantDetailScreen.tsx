@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { ArrowRight, Droplets, Sun, Thermometer, Wind, ChevronDown, ChevronUp, Leaf, Plus, Check } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 
 const API_URL = 'http://130.185.76.46:4380/api';
+const SERVER_URL = 'http://130.185.76.46:4380';
+
+// Helper function to get full image URL
+const getFullImageUrl = (imagePath: string | null | undefined): string => {
+  if (!imagePath) return 'https://via.placeholder.com/400x400?text=گیاه';
+  if (imagePath.startsWith('http')) return imagePath;
+  return `${SERVER_URL}${imagePath}`;
+};
 
 interface PlantData {
   id: number;
@@ -512,6 +520,8 @@ const ErrorText = styled.p`
 const PlantDetailScreen: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const source = searchParams.get('source'); // 'garden' or null (plant-bank)
   const [plant, setPlant] = useState<PlantData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -519,6 +529,7 @@ const PlantDetailScreen: React.FC = () => {
   const [mainImageLoaded, setMainImageLoaded] = useState(false);
   const [addingToGarden, setAddingToGarden] = useState(false);
   const [addedToGarden, setAddedToGarden] = useState(false);
+  const [isFromGarden, setIsFromGarden] = useState(false);
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
     watering: false,
     light: false,
@@ -532,30 +543,74 @@ const PlantDetailScreen: React.FC = () => {
       
       try {
         setLoading(true);
-        const response = await axios.get(`${API_URL}/plant-bank/${id}`);
+        const token = localStorage.getItem('authToken');
         
-        if (response.data.success) {
-          setPlant(response.data.data);
+        // اگر از باغچه آمده، گیاه کاربر را بگیر
+        if (source === 'garden' && token) {
+          const response = await axios.get(`${API_URL}/plants/${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
           
-          // بررسی اینکه آیا گیاه قبلاً به باغچه کاربر اضافه شده
-          const token = localStorage.getItem('authToken');
-          if (token) {
-            try {
-              const plantsResponse = await axios.get(`${API_URL}/plants`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              
-              if (plantsResponse.data.success) {
-                const userPlants = plantsResponse.data.plants;
-                const alreadyAdded = userPlants.some((p: any) => p.plant_id === parseInt(id));
-                setAddedToGarden(alreadyAdded);
-              }
-            } catch (checkError) {
-              console.log('خطا در بررسی گیاهان کاربر:', checkError);
-            }
+          if (response.data.success) {
+            const userPlant = response.data.plant;
+            // تبدیل داده‌های گیاه کاربر به فرمت PlantData
+            setPlant({
+              id: userPlant.plant_id,
+              name: userPlant.plant_name || userPlant.nickname,
+              name_fa: userPlant.plant_name_fa || userPlant.nickname,
+              scientific_name: userPlant.plant_scientific_name || '',
+              description_fa: userPlant.description_fa || '',
+              main_image_url: getFullImageUrl(userPlant.plant_image),
+              additional_images: [],
+              watering_interval_days: userPlant.effective_watering_interval || userPlant.default_watering_interval || 7,
+              watering_tips: userPlant.watering_tips || '',
+              light_requirement: userPlant.light_requirement || 'indirect',
+              light_description: userPlant.light_description || '',
+              min_temperature: userPlant.min_temperature || 15,
+              max_temperature: userPlant.max_temperature || 28,
+              humidity_level: userPlant.humidity_level || 'medium',
+              humidity_tips: userPlant.humidity_tips || '',
+              fertilizer_interval_days: userPlant.default_fertilizer_interval || 30,
+              fertilizer_tips: userPlant.fertilizer_tips || '',
+              difficulty_level: userPlant.difficulty_level || 'medium',
+              is_toxic_to_pets: userPlant.is_toxic_to_pets || false,
+              is_air_purifying: userPlant.is_air_purifying || false,
+            });
+            setIsFromGarden(true);
+            setAddedToGarden(true);
+          } else {
+            setError('گیاه یافت نشد');
           }
         } else {
-          setError('گیاه یافت نشد');
+          // از بانک گیاهان بگیر
+          const response = await axios.get(`${API_URL}/plant-bank/${id}`);
+          
+          if (response.data.success) {
+            const plantData = response.data.data;
+            setPlant({
+              ...plantData,
+              main_image_url: getFullImageUrl(plantData.main_image_url)
+            });
+            
+            // بررسی اینکه آیا گیاه قبلاً به باغچه کاربر اضافه شده
+            if (token) {
+              try {
+                const plantsResponse = await axios.get(`${API_URL}/plants`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                if (plantsResponse.data.success) {
+                  const userPlants = plantsResponse.data.plants;
+                  const alreadyAdded = userPlants.some((p: any) => p.plant_id === parseInt(id));
+                  setAddedToGarden(alreadyAdded);
+                }
+              } catch (checkError) {
+                console.log('خطا در بررسی گیاهان کاربر:', checkError);
+              }
+            }
+          } else {
+            setError('گیاه یافت نشد');
+          }
         }
       } catch (err) {
         console.error('خطا در دریافت اطلاعات گیاه:', err);
@@ -566,7 +621,7 @@ const PlantDetailScreen: React.FC = () => {
     };
 
     fetchPlantDetails();
-  }, [id]);
+  }, [id, source]);
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({

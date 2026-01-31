@@ -10,6 +10,14 @@ import ConfirmModal from '../components/ConfirmModal';
 import Header from '../components/Header';
 
 const API_URL = 'http://130.185.76.46:4380/api';
+const SERVER_URL = 'http://130.185.76.46:4380';
+
+// Helper function to get full image URL
+const getFullImageUrl = (imagePath: string | null): string => {
+  if (!imagePath) return 'https://via.placeholder.com/400x400?text=گیاه';
+  if (imagePath.startsWith('http')) return imagePath;
+  return `${SERVER_URL}${imagePath}`;
+};
 
 // Configure moment-jalaali
 moment.loadPersian({ dialect: 'persian-modern', usePersianDigits: true });
@@ -341,7 +349,7 @@ const GardenScreen: React.FC = () => {
             id: plant.id.toString(),
             name: plant.nickname || plant.plant_name_fa,
             scientificName: plant.plant_scientific_name || '',
-            image: plant.plant_image || 'https://via.placeholder.com/400x400?text=گیاه',
+            image: getFullImageUrl(plant.plant_image),
             hasReminder: daysUntilWatering <= 2,
             reminderText: daysUntilWatering <= 0 
               ? 'نیاز به آبیاری فوری' 
@@ -528,7 +536,7 @@ const GardenScreen: React.FC = () => {
   };
 
   const handlePlantClick = (plantId: string) => {
-    navigate(`/plant/${plantId}`);
+    navigate(`/plant/${plantId}?source=garden`);
   };
 
   return (

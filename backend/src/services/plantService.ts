@@ -319,9 +319,22 @@ export const getUserPlantById = async (userPlantId: number, userId: number): Pro
       p.name as plant_name,
       p.name_fa as plant_name_fa,
       p.scientific_name as plant_scientific_name,
+      p.description_fa as description_fa,
       p.main_image_url as plant_image,
       p.watering_interval_days as default_watering_interval,
-      p.fertilizer_interval_days as default_fertilizer_interval
+      p.watering_tips as watering_tips,
+      p.light_requirement as light_requirement,
+      p.light_description as light_description,
+      p.min_temperature as min_temperature,
+      p.max_temperature as max_temperature,
+      p.humidity_level as humidity_level,
+      p.humidity_tips as humidity_tips,
+      p.fertilizer_interval_days as default_fertilizer_interval,
+      p.fertilizer_tips as fertilizer_tips,
+      p.difficulty_level as difficulty_level,
+      p.is_toxic_to_pets as is_toxic_to_pets,
+      p.is_air_purifying as is_air_purifying,
+      COALESCE(up.custom_watering_interval, p.watering_interval_days) as effective_watering_interval
     FROM user_plants up
     INNER JOIN plants p ON up.plant_id = p.id
     WHERE up.id = $1 AND up.user_id = $2
