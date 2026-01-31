@@ -197,7 +197,7 @@ const identifyPlantWithGemini = async (
   mimeType: string = 'image/jpeg'
 ): Promise<PlantIdentificationResult | null> => {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     // خواندن تصویر
     const imageBuffer = fs.readFileSync(imagePath);
