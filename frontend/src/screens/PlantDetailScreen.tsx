@@ -38,7 +38,7 @@ interface PlantData {
 }
 
 const ScreenContainer = styled.div`
-  min-height: 100vh;
+  min-height: calc(100vh - 90px);
   background: linear-gradient(135deg, #f5f9f5 0%, #e8f5e9 50%, #f1f8f4 100%);
   padding-bottom: 100px;
 `;

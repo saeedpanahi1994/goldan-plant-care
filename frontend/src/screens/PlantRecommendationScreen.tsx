@@ -13,7 +13,7 @@ import {
 // --- Styled Components ---
 
 const ScreenContainer = styled.div`
-  min-height: 100vh;
+  min-height: calc(100vh - 90px);
   background-color: #f5f5f5;
   padding-bottom: 20px;
   font-family: 'Vazirmatn', sans-serif;

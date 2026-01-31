@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import { Search } from 'lucide-react';
 
 const ScreenContainer = styled.div`
-  min-height: 100vh;
+  min-height: calc(100vh - 90px);
   background: #f8f9fa;
   direction: rtl;
 `;

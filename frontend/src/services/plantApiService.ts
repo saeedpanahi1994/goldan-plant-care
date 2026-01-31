@@ -40,6 +40,7 @@ export interface PlantIdentificationResult {
   is_air_purifying: boolean;
   // تصاویر
   userImageUrl: string;
+  wikipediaImageUrl: string | null;  // تصویر Wikipedia برای ذخیره در دیتابیس
   additionalImages: string[];
 }
 

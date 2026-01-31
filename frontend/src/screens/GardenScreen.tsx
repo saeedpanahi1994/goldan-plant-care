@@ -28,7 +28,7 @@ const toPersianDigits = (num: number): string => {
 };
 
 const ScreenContainer = styled.div`
-  min-height: 100vh;
+  min-height: calc(100vh - 90px);
   background: linear-gradient(135deg, #f5f9f5 0%, #e8f5e9 50%, #f1f8f4 100%);
   padding: 0 0 20px 0;
   position: relative;
@@ -557,9 +557,7 @@ const GardenScreen: React.FC = () => {
           </LoadingContainer>
         ) : plants.length > 0 ? (
           <>
-            <SectionHeader>
-              <SectionTitle>گیاهان من ({toPersianDigits(plants.length)})</SectionTitle>
-            </SectionHeader>
+            
             <PlantsList>
               {plants.map((plant) => (
                 <PlantCard

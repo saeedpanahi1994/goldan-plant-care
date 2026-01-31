@@ -5,7 +5,7 @@ import { Sun, Wind, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ScreenContainer = styled.div`
-  min-height: 100vh;
+  min-height: calc(100vh - 90px);
   background: linear-gradient(180deg, #f8fffe 0%, #f0fff4 50%, #f8f9fa 100%);
   padding-bottom: 100px;
   font-family: 'Vazirmatn', sans-serif;

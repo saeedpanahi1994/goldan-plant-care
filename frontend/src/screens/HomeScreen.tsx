@@ -5,7 +5,7 @@ import FeatureCard from '../components/FeatureCard';
 import { useNavigate } from 'react-router-dom';
 
 const ScreenContainer = styled.div`
-  min-height: 100vh;
+  min-height: calc(100vh - 90px);
   background: linear-gradient(180deg, #f8fffe 0%, #f0fff4 50%, #f8f9fa 100%);
   direction: rtl;
   position: relative;

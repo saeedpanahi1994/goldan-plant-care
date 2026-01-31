@@ -16,6 +16,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 // ایجاد فولدر uploads اگر وجود نداشت
 const uploadsDir = path.join(__dirname, '../../uploads');
 const identifiedImagesDir = path.join(__dirname, '../../uploads/identified');
+const mainPicDir = path.join(__dirname, '../../gol_gadering/mainPic');
+const picsDir = path.join(__dirname, '../../gol_gadering/pics');
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -23,6 +25,14 @@ if (!fs.existsSync(uploadsDir)) {
 
 if (!fs.existsSync(identifiedImagesDir)) {
   fs.mkdirSync(identifiedImagesDir, { recursive: true });
+}
+
+if (!fs.existsSync(mainPicDir)) {
+  fs.mkdirSync(mainPicDir, { recursive: true });
+}
+
+if (!fs.existsSync(picsDir)) {
+  fs.mkdirSync(picsDir, { recursive: true });
 }
 
 // تنظیمات multer برای آپلود فایل
@@ -88,6 +98,7 @@ interface PlantIdentificationResult {
   is_air_purifying: boolean;
   // تصاویر
   userImageUrl: string;
+  wikipediaImageUrl: string | null;  // تصویر Wikipedia برای ذخیره در دیتابیس
   additionalImages: string[];
 }
 
@@ -144,8 +155,8 @@ const createPrompt = () => `
 - همه توضیحات و tips باید به فارسی و خلاصه باشند
 `;
 
-// تابع دانلود تصویر از Wikipedia
-const downloadPlantImageFromWikipedia = async (plantName: string, scientificName: string): Promise<string | null> => {
+// تابع دانلود تصویر از Wikipedia و ذخیره در چند مسیر
+const downloadPlantImageFromWikipedia = async (plantName: string, scientificName: string): Promise<{ mainImage: string | null; additionalImage: string | null }> => {
   try {
     console.log('🔍 جستجوی تصویر در Wikipedia...');
     
@@ -210,13 +221,29 @@ const downloadPlantImageFromWikipedia = async (plantName: string, scientificName
           else if (contentType.includes('webp')) ext = '.webp';
           else if (contentType.includes('gif')) ext = '.gif';
           
-          const filename = `wiki-${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
-          const filepath = path.join(identifiedImagesDir, filename);
+          // ایجاد نام فایل یکتا
+          const uniqueId = crypto.randomBytes(10).toString('base64url');
+          const filename = `${uniqueId}${ext}`;
           
-          fs.writeFileSync(filepath, downloadResponse.data);
-          console.log(`✅ تصویر Wikipedia ذخیره شد: ${filename}`);
+          // ذخیره در mainPic (برای main_image_url در دیتابیس)
+          const mainPicPath = path.join(mainPicDir, filename);
+          fs.writeFileSync(mainPicPath, downloadResponse.data);
+          console.log(`✅ تصویر در mainPic ذخیره شد: ${filename}`);
           
-          return `/uploads/identified/${filename}`;
+          // ذخیره در pics (برای تصاویر اضافی)
+          const picsPath = path.join(picsDir, filename);
+          fs.writeFileSync(picsPath, downloadResponse.data);
+          console.log(`✅ تصویر در pics ذخیره شد: ${filename}`);
+          
+          // ذخیره در identified هم (برای نمایش فوری بعد از شناسایی)
+          const identifiedPath = path.join(identifiedImagesDir, filename);
+          fs.writeFileSync(identifiedPath, downloadResponse.data);
+          console.log(`✅ تصویر در identified ذخیره شد: ${filename}`);
+          
+          return {
+            mainImage: `/storage/plant/${filename}`,  // برای ذخیره در دیتابیس
+            additionalImage: `/uploads/identified/${filename}`  // برای نمایش فوری
+          };
         }
       } catch (searchErr: any) {
         console.log(`⚠️ خطا در جستجوی "${searchTerm}": ${searchErr.message}`);
@@ -225,11 +252,11 @@ const downloadPlantImageFromWikipedia = async (plantName: string, scientificName
     }
     
     console.log('⚠️ تصویری در Wikipedia یافت نشد');
-    return null;
+    return { mainImage: null, additionalImage: null };
     
   } catch (error: any) {
     console.log('⚠️ خطا در دانلود از Wikipedia:', error.message);
-    return null;
+    return { mainImage: null, additionalImage: null };
   }
 };
 
@@ -273,19 +300,22 @@ const identifyPlantWithGemini = async (
     const plantData = JSON.parse(jsonStr);
     
     // دانلود تصویر از Wikipedia
-    const wikipediaImage = await downloadPlantImageFromWikipedia(
+    const wikipediaImages = await downloadPlantImageFromWikipedia(
       plantData.name_en || plantData.scientificName,
       plantData.scientificName
     );
     
-    // ساخت لیست تصاویر اضافی
+    // ساخت لیست تصاویر اضافی (برای نمایش فوری)
     const additionalImages: string[] = [];
-    if (wikipediaImage) {
-      additionalImages.push(wikipediaImage);
+    if (wikipediaImages.additionalImage) {
+      additionalImages.push(wikipediaImages.additionalImage);
     }
     
     // ساخت URL تصویر کاربر
     const userImageUrl = `/uploads/${path.basename(imagePath)}`;
+    
+    // تصویر Wikipedia برای ذخیره در دیتابیس (مسیر /storage/plant/)
+    const wikipediaImageUrl = wikipediaImages.mainImage || null;
     
     return {
       name: plantData.name,
@@ -318,6 +348,7 @@ const identifyPlantWithGemini = async (
       is_toxic_to_pets: plantData.is_toxic_to_pets || false,
       is_air_purifying: plantData.is_air_purifying || false,
       userImageUrl,
+      wikipediaImageUrl,
       additionalImages
     };
   } catch (error) {
@@ -435,6 +466,9 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
     if (existingPlant.rows.length > 0) {
       plantId = existingPlant.rows[0].id;
     } else {
+      // انتخاب تصویر اصلی: اگر تصویر Wikipedia موجود بود از آن استفاده کن، در غیر این صورت از تصویر کاربر
+      const mainImageUrl = plantData.wikipediaImageUrl || plantData.userImageUrl;
+      
       // ایجاد گیاه جدید در کاتالوگ
       const newPlant = await query(`
         INSERT INTO plants (
@@ -452,7 +486,7 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
         plantData.name_fa, // name_fa
         plantData.scientificName,
         plantData.description,
-        plantData.userImageUrl,
+        mainImageUrl,  // استفاده از تصویر Wikipedia یا تصویر کاربر
         plantData.watering_interval_days,
         plantData.watering_tips,
         plantData.light_requirement,
