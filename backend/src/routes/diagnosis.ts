@@ -678,7 +678,7 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
         custom_image_url,
         last_watered_at, next_watering_at,
         last_fertilized_at, next_fertilizing_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
     `, [
       user.id,
