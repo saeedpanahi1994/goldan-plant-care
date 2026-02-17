@@ -4,14 +4,292 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import FormData from 'form-data';
 import axios from 'axios';
+import sharp from 'sharp';
 import { authMiddleware } from './auth';
 import { query } from '../config/database';
 
 const router = Router();
 
 // تنظیمات Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const getGeminiApiKeys = (): string[] => {
+  const rawList = process.env.GEMINI_API_KEYS || '';
+  const single = process.env.GEMINI_API_KEY || '';
+
+  const keys = rawList
+    .split(/[,;\s]+/)
+    .map((k) => k.trim())
+    .filter(Boolean);
+
+  if (single && !keys.includes(single)) {
+    keys.push(single);
+  }
+
+  return keys;
+};
+
+const isQuotaError = (error: any): boolean => {
+  const status = error?.status || error?.response?.status;
+  if (status === 429) return true;
+  const message = String(error?.message || '').toLowerCase();
+  if (message.includes('too many requests') || message.includes('quota')) return true;
+  const details = error?.errorDetails || [];
+  return Array.isArray(details)
+    && details.some((d: any) => String(d?.['@type'] || '').includes('QuotaFailure'));
+};
+
+const getAiType = (): string => {
+  return (process.env.typeAi || process.env.TYPE_AI || 'gemini-2.5-flash').toLowerCase();
+};
+
+// تنظیمات برای انتخاب مدل text-to-text (اطلاعات گیاه)
+const getIdentifyType = (): string => {
+  return (process.env.typeIdentify || process.env.TYPE_IDENTIFY || 'gemini').toLowerCase();
+};
+
+const shouldUseOpenRouter = (): boolean => {
+  const type = getIdentifyType();
+  return type.includes('openrouter');
+};
+
+// دریافت لیست مدل‌های OpenRouter (چرخشی)
+const getOpenRouterModels = (): string[] => {
+  const models = process.env.OPENROUTER_MODELS || process.env.OPENROUTER_MODEL || 'stepfun/step-3.5-flash:free';
+  return models.split(',').map(m => m.trim()).filter(Boolean);
+};
+
+const shouldUsePlantNet = (): boolean => {
+  const type = getAiType();
+  return type.includes('plantnet');
+};
+
+let plantNetBackoffUntil = 0;
+let plantNetBackoffReason = '';
+
+const getPlantNetBackoffMinutes = (): number => {
+  const minutes = Number(process.env.PLANTNET_BACKOFF_MINUTES || 5);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : 5;
+};
+
+const setPlantNetBackoff = (reason: string) => {
+  const minutes = getPlantNetBackoffMinutes();
+  plantNetBackoffUntil = Date.now() + minutes * 60 * 1000;
+  plantNetBackoffReason = reason;
+  console.warn(`⏸️ [PlantNet] Backoff فعال شد برای ${minutes} دقیقه. دلیل: ${reason}`);
+};
+
+const clearPlantNetBackoff = () => {
+  if (plantNetBackoffUntil > 0) {
+    console.log('✅ [PlantNet] Backoff برداشته شد');
+  }
+  plantNetBackoffUntil = 0;
+  plantNetBackoffReason = '';
+};
+
+const isPlantNetAvailable = (): boolean => {
+  const available = Date.now() >= plantNetBackoffUntil;
+  if (!available) {
+    const remainingMs = plantNetBackoffUntil - Date.now();
+    const remainingSec = Math.ceil(remainingMs / 1000);
+    console.log(`⏳ [PlantNet] هنوز در backoff است. ${remainingSec} ثانیه باقیمانده. دلیل: ${plantNetBackoffReason}`);
+  }
+  return available;
+};
+
+// شمارنده برای tracking استفاده از کلیدها
+let geminiKeyUsageStats: { [key: string]: number } = {};
+
+const generateGeminiContentWithRotation = async (
+  prompt: string,
+  image?: { mimeType: string; base64: string }
+): Promise<any | null> => {
+  const keys = getGeminiApiKeys();
+  if (!keys.length) {
+    console.error('⚠️ GEMINI_API_KEY/GEMINI_API_KEYS تنظیم نشده است');
+    return null;
+  }
+
+  console.log(`🔑 تعداد کلیدهای Gemini موجود: ${keys.length}`);
+
+  let result: any = null;
+  let lastError: any = null;
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const maskedKey = key.substring(0, 8) + '...' + key.substring(key.length - 4);
+    
+    try {
+      console.log(`🔄 استفاده از کلید Gemini #${i + 1}/${keys.length}: ${maskedKey}`);
+      const startTime = Date.now();
+      
+      const client = new GoogleGenerativeAI(key);
+      const model = client.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const payload = image
+        ? [
+            prompt,
+            {
+              inlineData: {
+                mimeType: image.mimeType,
+                data: image.base64
+              }
+            }
+          ]
+        : prompt;
+
+      result = await model.generateContent(payload as any);
+      
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Gemini API موفق با کلید #${i + 1} در ${elapsed}ms`);
+      
+      // ثبت آمار استفاده
+      geminiKeyUsageStats[maskedKey] = (geminiKeyUsageStats[maskedKey] || 0) + 1;
+      console.log(`📊 آمار استفاده از کلیدها:`, geminiKeyUsageStats);
+      
+      lastError = null;
+      break;
+    } catch (err: any) {
+      lastError = err;
+      const maskedKey = key.substring(0, 8) + '...' + key.substring(key.length - 4);
+      if (isQuotaError(err)) {
+        console.warn(`⚠️ سهمیه Gemini تمام شد برای کلید #${i + 1} (${maskedKey})، تلاش با کلید بعدی...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (!result) {
+    console.error('خطا در شناسایی گیاه با Gemini:', lastError);
+    return null;
+  }
+
+  return result;
+};
+
+// تابع فراخوانی OpenRouter API برای text-to-text با چرخش مدل‌ها
+const generateOpenRouterContent = async (prompt: string): Promise<string | null> => {
+  const apiKey = process.env.OPENROUTER_API_KEY || '';
+  if (!apiKey) {
+    console.error('⚠️ OPENROUTER_API_KEY تنظیم نشده است');
+    return null;
+  }
+
+  const models = getOpenRouterModels();
+  const proxyUrl = process.env.OPENROUTER_PROXY || '';
+  
+  console.log(`🤖 [OpenRouter] تعداد مدل‌های موجود: ${models.length}`);
+  if (proxyUrl) {
+    console.log(`🔗 [OpenRouter] استفاده از پروکسی: ${proxyUrl}`);
+  }
+  
+  // تنظیمات پروکسی
+  const axiosConfig: any = {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:3000',
+      'X-Title': 'Goldan Plant Care App'
+    },
+    timeout: 60000
+  };
+  
+  // اگر پروکسی تنظیم شده باشد
+  if (proxyUrl) {
+    const proxyParts = proxyUrl.match(/^(https?):\/\/(?:([^:]+):([^@]+)@)?([^:]+):(\d+)$/);
+    if (proxyParts) {
+      axiosConfig.proxy = {
+        protocol: proxyParts[1],
+        host: proxyParts[4],
+        port: parseInt(proxyParts[5]),
+        ...(proxyParts[2] && proxyParts[3] ? {
+          auth: {
+            username: proxyParts[2],
+            password: proxyParts[3]
+          }
+        } : {})
+      };
+    }
+  }
+  
+  // چرخش بین مدل‌ها
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    console.log(`🔄 [OpenRouter] تلاش ${i + 1}/${models.length} با مدل: ${model}`);
+    
+    const startTime = Date.now();
+    
+    try {
+      const response = await axios.post(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {
+          model: model,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000
+        },
+        axiosConfig
+      );
+
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ [OpenRouter] پاسخ دریافت شد با مدل ${model} در ${elapsed}ms`);
+
+      const text = response.data?.choices?.[0]?.message?.content;
+      if (!text) {
+        console.warn('⚠️ [OpenRouter] پاسخ خالی از مدل، تلاش با مدل بعدی...');
+        continue;
+      }
+
+      return text;
+    } catch (error: any) {
+      const elapsed = Date.now() - startTime;
+      const statusCode = error?.response?.status;
+      const errorMsg = error?.response?.data?.error?.message || error?.message;
+      
+      // اگر rate limit یا 404 بود، به مدل بعدی برو
+      if (statusCode === 429 || statusCode === 404) {
+        console.warn(`⚠️ [OpenRouter] مدل ${model} - خطا ${statusCode}: ${errorMsg}`);
+        console.warn(`🔄 [OpenRouter] تلاش با مدل بعدی...`);
+        continue;
+      }
+      
+      // خطاهای شبکه
+      if (error?.code === 'ETIMEDOUT' || error?.code === 'ECONNREFUSED') {
+        console.error(`⚠️ [OpenRouter] اتصال ممکن نیست (${error.code}) - نیاز به پروکسی دارید`);
+        return null;
+      }
+      
+      console.error(`⚠️ [OpenRouter] خطا بعد از ${elapsed}ms:`, errorMsg);
+    }
+  }
+  
+  console.error('⚠️ [OpenRouter] همه مدل‌ها خطا دادند');
+  return null;
+};
+
+// تابع یکپارچه برای دریافت اطلاعات گیاه (Gemini یا OpenRouter)
+const generatePlantInfoContent = async (prompt: string): Promise<string | null> => {
+  if (shouldUseOpenRouter()) {
+    console.log('🔄 [PlantInfo] استفاده از OpenRouter...');
+    const result = await generateOpenRouterContent(prompt);
+    if (result) return result;
+    
+    // Fallback به Gemini اگر OpenRouter خطا داد
+    console.warn('⚠️ [PlantInfo] OpenRouter خطا داد، تلاش با Gemini...');
+  }
+  
+  console.log('🔄 [PlantInfo] استفاده از Gemini...');
+  const geminiResult = await generateGeminiContentWithRotation(prompt);
+  if (!geminiResult) return null;
+  
+  return geminiResult.response.text();
+};
 
 // ایجاد فولدر uploads اگر وجود نداشت
 const uploadsDir = path.join(__dirname, '../../uploads');
@@ -208,10 +486,66 @@ const createDiseasePrompt = () => `
 - همه توضیحات و tips باید به فارسی و خلاصه باشند
 `;
 
+const createPromptFromScientificName = (scientificName: string, commonName?: string) => `
+شما یک متخصص گیاه‌شناسی هستید. لطفاً بر اساس اطلاعات زیر، مشخصات گیاه را به صورت JSON برگردانید.
+
+نام علمی: ${scientificName}
+نام رایج (در صورت وجود): ${commonName || 'نامشخص'}
+
+مهم: پاسخ باید فقط و فقط یک JSON معتبر باشد بدون هیچ متن اضافی.
+
+{
+  "name": "نام فارسی گیاه",
+  "name_en": "نام انگلیسی گیاه",
+  "scientificName": "نام علمی گیاه",
+  "family": "خانواده گیاه به فارسی",
+  "description": "توضیح کوتاه درباره گیاه به فارسی (2-3 جمله)",
+  "needs": {
+    "light": "نیاز نوری (مثل: نور غیرمستقیم زیاد، نور کم، نور مستقیم)",
+    "water": "نیاز آبیاری (مثل: هر 3 روز، هفتگی، دو بار در هفته)",
+    "temperature": "محدوده دمای مناسب (مثل: 18-25 درجه)",
+    "humidity": "نیاز رطوبت (مثل: بالا، متوسط، کم)"
+  },
+  "healthStatus": "وضعیت سلامت گیاه (سالم، نیاز به توجه، بیمار)",
+  "disease": "نام بیماری اگر وجود دارد یا 'ندارد'",
+  "treatment": "راه درمان اگر بیماری دارد یا 'نیاز به درمان خاصی ندارد'",
+  "careTips": ["نکته مراقبتی 1", "نکته مراقبتی 2", "نکته مراقبتی 3"],
+  "confidence": 0.85,
+  "watering_interval_days": 7,
+  "watering_tips": "نحوه صحیح آبیاری این گیاه به فارسی (1-2 جمله خلاصه)",
+  "light_requirement": "indirect",
+  "light_description": "توضیح نیاز نوری گیاه به فارسی (1-2 جمله خلاصه)",
+  "min_temperature": 15,
+  "max_temperature": 28,
+  "ideal_temperature": 22,
+  "temperature_tips": "توضیح دمای مناسب به فارسی (1 جمله)",
+  "humidity_level": "medium",
+  "humidity_tips": "توضیح رطوبت مناسب به فارسی (1 جمله)",
+  "fertilizer_interval_days": 30,
+  "fertilizer_type": "نوع کود مناسب (مثل: کود مایع همه‌کاره)",
+  "fertilizer_tips": "نحوه کوددهی به فارسی (1 جمله)",
+  "soil_type": "نوع خاک مناسب (مثل: خاک غنی و زهکش‌دار)",
+  "soil_tips": "توضیح خاک مناسب به فارسی (1-2 جمله)",
+  "difficulty_level": "easy",
+  "is_toxic_to_pets": false,
+  "is_air_purifying": true
+}
+
+نکات مهم:
+- light_requirement باید یکی از این مقادیر باشد: direct, indirect, behind_curtain, low_light
+- humidity_level باید یکی از این مقادیر باشد: low, medium, high
+- difficulty_level باید یکی از این مقادیر باشد: easy, medium, hard
+- confidence عددی بین 0 تا 1 است که نشان‌دهنده اطمینان از شناسایی است
+- watering_interval_days باید عدد صحیح باشد (تعداد روز بین آبیاری‌ها)
+- fertilizer_interval_days باید عدد صحیح باشد (تعداد روز بین کوددهی‌ها)
+- همه توضیحات و tips باید به فارسی و خلاصه باشند
+`;
+
 // تابع دانلود تصویر از Wikipedia و ذخیره در چند مسیر
 const downloadPlantImageFromWikipedia = async (plantName: string, scientificName: string): Promise<{ mainImage: string | null; additionalImage: string | null }> => {
+  const startTotal = Date.now();
   try {
-    console.log('🔍 جستجوی تصویر در Wikipedia...');
+    console.log('🔍 [Wikipedia] شروع جستجوی تصویر...');
     
     // اول با نام علمی جستجو می‌کنیم (دقیق‌تر است)
     const searchTerms = [scientificName, plantName].filter(Boolean);
@@ -293,6 +627,9 @@ const downloadPlantImageFromWikipedia = async (plantName: string, scientificName
           fs.writeFileSync(identifiedPath, downloadResponse.data);
           console.log(`✅ تصویر در identified ذخیره شد: ${filename}`);
           
+          const totalElapsed = Date.now() - startTotal;
+          console.log(`⏱️ [Wikipedia] کل عملیات دانلود تصویر: ${totalElapsed}ms`);
+          
           return {
             mainImage: `/storage/plant/${filename}`,  // برای ذخیره در دیتابیس
             additionalImage: `/uploads/identified/${filename}`  // برای نمایش فوری
@@ -305,6 +642,8 @@ const downloadPlantImageFromWikipedia = async (plantName: string, scientificName
     }
     
     console.log('⚠️ تصویری در Wikipedia یافت نشد');
+    const totalElapsed = Date.now() - startTotal;
+    console.log(`⏱️ [Wikipedia] کل عملیات (بدون نتیجه): ${totalElapsed}ms`);
     return { mainImage: null, additionalImage: null };
     
   } catch (error: any) {
@@ -313,30 +652,159 @@ const downloadPlantImageFromWikipedia = async (plantName: string, scientificName
   }
 };
 
+const identifyScientificNameWithPlantNet = async (imagePath: string, mimeType: string) => {
+  const startTotal = Date.now();
+  const apiKey = process.env.PLANTNET_API_KEY || '';
+  if (!apiKey) {
+    console.error('⚠️ PLANTNET_API_KEY تنظیم نشده است');
+    return null;
+  }
+
+  const url = `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(apiKey)}`;
+  const timeoutMs = Number(process.env.PLANTNET_TIMEOUT_MS || 45000);
+  const maxRetries = Number(process.env.PLANTNET_RETRIES || 2);
+
+  console.log(`🌱 [PlantNet] شروع شناسایی با timeout: ${timeoutMs}ms`);
+
+  // Resize تصویر برای کاهش حجم و افزایش سرعت
+  const resizedImagePath = imagePath.replace(/(\.\w+)$/, '-resized$1');
+  const startResize = Date.now();
+  try {
+    await sharp(imagePath)
+      .resize(800, 800, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .jpeg({ quality: 85 })
+      .toFile(resizedImagePath);
+    
+    const resizeElapsed = Date.now() - startResize;
+    console.log(`✅ [PlantNet] تصویر resize شد در ${resizeElapsed}ms: ${path.basename(imagePath)}`);
+  } catch (resizeError) {
+    const resizeElapsed = Date.now() - startResize;
+    console.error(`⚠️ [PlantNet] خطا در resize تصویر بعد از ${resizeElapsed}ms، از اصلی استفاده می‌شود:`, resizeError);
+    // اگر resize نشد، از تصویر اصلی استفاده کن
+  }
+
+  const imageToUpload = fs.existsSync(resizedImagePath) ? resizedImagePath : imagePath;
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      console.log(`🌱 [PlantNet] تلاش ${attempt + 1}/${maxRetries + 1}...`);
+      const startApi = Date.now();
+      
+      const form = new FormData();
+      form.append('organs', 'leaf');
+      form.append('images', fs.createReadStream(imageToUpload), {
+        filename: path.basename(imagePath),
+        contentType: mimeType
+      });
+
+      const response = await axios.post(url, form, {
+        headers: {
+          ...form.getHeaders()
+        },
+        timeout: timeoutMs
+      });
+
+      const apiElapsed = Date.now() - startApi;
+      console.log(`✅ [PlantNet] پاسخ دریافت شد در ${apiElapsed}ms`);
+
+      const top = response.data?.results?.[0];
+      const scientificName = top?.species?.scientificNameWithoutAuthor || top?.species?.scientificName;
+      const commonName = Array.isArray(top?.species?.commonNames)
+        ? top.species.commonNames[0]
+        : undefined;
+
+      if (!scientificName) {
+        // پاک کردن فایل resize شده
+        if (fs.existsSync(resizedImagePath)) {
+          fs.unlinkSync(resizedImagePath);
+        }
+        const totalElapsed = Date.now() - startTotal;
+        console.log(`⏱️ [PlantNet] کل عملیات (بدون نتیجه): ${totalElapsed}ms`);
+        return null;
+      }
+
+      // پاک کردن فایل resize شده
+      if (fs.existsSync(resizedImagePath)) {
+        fs.unlinkSync(resizedImagePath);
+      }
+
+      const totalElapsed = Date.now() - startTotal;
+      console.log(`⏱️ [PlantNet] کل عملیات موفق: ${totalElapsed}ms - نام علمی: ${scientificName}`);
+
+      // اگر PlantNet موفق بود، backoff را پاک کن (اگر قبلاً فعال بود)
+      clearPlantNetBackoff();
+
+      return {
+        scientificName,
+        commonName,
+        confidence: top?.score ?? null
+      };
+    } catch (error: any) {
+      lastError = error;
+      const apiElapsed = Date.now() - startTotal;
+      const isTimeout = error?.code === 'ECONNABORTED' || String(error?.message || '').includes('timeout');
+      console.warn(`⚠️ [PlantNet] خطا در تلاش ${attempt + 1} بعد از ${apiElapsed}ms: ${error?.message || error}`);
+      if (attempt < maxRetries && isTimeout) {
+        const delay = 500 * (attempt + 1);
+        console.log(`🔄 [PlantNet] انتظار ${delay}ms قبل از تلاش مجدد...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+      break;
+    }
+  }
+
+  // پاک کردن فایل resize شده در صورت خطا
+  if (fs.existsSync(resizedImagePath)) {
+    fs.unlinkSync(resizedImagePath);
+  }
+
+  const totalElapsed = Date.now() - startTotal;
+  
+  // بررسی نوع خطا برای تصمیم‌گیری درباره backoff
+  const isNetworkError = lastError?.code === 'ECONNABORTED' || 
+                         lastError?.code === 'ENOTFOUND' ||
+                         lastError?.code === 'ETIMEDOUT' ||
+                         String(lastError?.message || '').includes('timeout') ||
+                         String(lastError?.message || '').includes('network');
+  
+  if (isNetworkError) {
+    setPlantNetBackoff(`خطای شبکه در PlantNet: ${lastError?.message || lastError}`);
+  }
+  
+  console.error(`⚠️ [PlantNet] خطا در درخواست بعد از ${totalElapsed}ms:`, lastError?.message || lastError);
+  return null;
+};
+
 // تابع شناسایی گیاه با Gemini
 const identifyPlantWithGemini = async (
   imagePath: string,
   mimeType: string = 'image/jpeg',
   promptOverride?: string
 ): Promise<PlantIdentificationResult | null> => {
+  const startTotal = Date.now();
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    console.log('🤖 [Gemini] شروع شناسایی گیاه با تصویر...');
     
     // خواندن تصویر
+    const startRead = Date.now();
     const imageBuffer = fs.readFileSync(imagePath);
     const base64Image = imageBuffer.toString('base64');
+    const readElapsed = Date.now() - startRead;
+    console.log(`📖 [Gemini] تصویر خوانده شد در ${readElapsed}ms (${(imageBuffer.length / 1024).toFixed(1)} KB)`);
     
     const prompt = promptOverride || createPrompt();
-    
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: mimeType,
-          data: base64Image
-        }
-      }
-    ]);
+
+    const result = await generateGeminiContentWithRotation(prompt, {
+      mimeType,
+      base64: base64Image
+    });
+
+    if (!result) return null;
     
     const response = result.response;
     const text = response.text();
@@ -406,8 +874,122 @@ const identifyPlantWithGemini = async (
       additionalImages
     };
   } catch (error) {
-    console.error('خطا در شناسایی گیاه با Gemini:', error);
+    const totalElapsed = Date.now() - startTotal;
+    console.error(`خطا در شناسایی گیاه با Gemini بعد از ${totalElapsed}ms:`, error);
     return null;
+  }
+};
+
+const identifyPlantWithPlantNetAndGemini = async (
+  imagePath: string,
+  mimeType: string = 'image/jpeg'
+): Promise<PlantIdentificationResult | null> => {
+  const startTotal = Date.now();
+  console.log('🌿 [PlantNet+Gemini] شروع شناسایی ترکیبی...');
+  
+  try {
+    if (!isPlantNetAvailable()) {
+      console.warn('⚠️ PlantNet موقتاً در دسترس نیست. ادامه با Gemini تصویر...');
+      return await identifyPlantWithGemini(imagePath, mimeType);
+    }
+
+    console.log('🌱 [PlantNet+Gemini] مرحله 1: شناسایی نام علمی با PlantNet...');
+    const startPlantNet = Date.now();
+    const plantnet = await identifyScientificNameWithPlantNet(imagePath, mimeType);
+    const plantNetElapsed = Date.now() - startPlantNet;
+    console.log(`⏱️ [PlantNet+Gemini] مرحله 1 کامل شد در ${plantNetElapsed}ms`);
+    if (!plantnet?.scientificName) {
+      console.warn('⚠️ PlantNet نتوانست نام علمی برگرداند. تلاش با Gemini تصویر...');
+      // اگر PlantNet گیاه را نشناسد، backoff نمی‌کنیم چون API کار می‌کند
+      // فقط برای خطاهای شبکه/timeout باید backoff کنیم
+      return await identifyPlantWithGemini(imagePath, mimeType);
+    }
+
+    console.log('🤖 [PlantNet+AI] مرحله 2: دریافت اطلاعات کامل...');
+    const startAI = Date.now();
+    const prompt = createPromptFromScientificName(plantnet.scientificName, plantnet.commonName);
+    const text = await generatePlantInfoContent(prompt);
+    const aiElapsed = Date.now() - startAI;
+    console.log(`⏱️ [PlantNet+AI] مرحله 2 کامل شد در ${aiElapsed}ms`);
+    
+    if (!text) return null;
+
+    let jsonStr = text;
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1].trim();
+    }
+
+    const plantData = JSON.parse(jsonStr);
+
+    console.log('📥 [PlantNet+AI] مرحله 3: دانلود تصویر از Wikipedia...');
+    const startWiki = Date.now();
+    const wikipediaImages = await downloadPlantImageFromWikipedia(
+      plantData.name_en || plantData.scientificName || plantnet.scientificName,
+      plantData.scientificName || plantnet.scientificName
+    );
+    const wikiElapsed = Date.now() - startWiki;
+    console.log(`⏱️ [PlantNet+AI] مرحله 3 کامل شد در ${wikiElapsed}ms`);
+
+    const additionalImages: string[] = [];
+    if (wikipediaImages.additionalImage) {
+      additionalImages.push(wikipediaImages.additionalImage);
+    }
+
+    const userImageUrl = `/uploads/${path.basename(imagePath)}`;
+    const wikipediaImageUrl = wikipediaImages.mainImage || null;
+
+    const totalElapsed = Date.now() - startTotal;
+    console.log(`✅ [PlantNet+AI] کل عملیات موفق در ${totalElapsed}ms`);
+    console.log(`📊 [خلاصه زمان‌بندی] PlantNet: ${plantNetElapsed}ms | AI: ${aiElapsed}ms | Wikipedia: ${wikiElapsed}ms | کل: ${totalElapsed}ms`);
+
+    return {
+      name: plantData.name,
+      name_fa: plantData.name,
+      scientificName: plantData.scientificName || plantnet.scientificName,
+      family: plantData.family,
+      description: plantData.description,
+      needs: plantData.needs,
+      healthStatus: plantData.healthStatus,
+      disease: plantData.disease,
+      treatment: plantData.treatment,
+      careTips: plantData.careTips,
+      confidence: plantData.confidence || plantnet.confidence || 0.8,
+      watering_interval_days: plantData.watering_interval_days || 7,
+      watering_tips: plantData.watering_tips || plantData.needs?.water || '',
+      light_requirement: plantData.light_requirement || 'indirect',
+      light_description: plantData.light_description || plantData.needs?.light || '',
+      min_temperature: plantData.min_temperature || 15,
+      max_temperature: plantData.max_temperature || 28,
+      ideal_temperature: plantData.ideal_temperature || 22,
+      temperature_tips: plantData.temperature_tips || plantData.needs?.temperature || '',
+      humidity_level: plantData.humidity_level || 'medium',
+      humidity_tips: plantData.humidity_tips || plantData.needs?.humidity || '',
+      fertilizer_interval_days: plantData.fertilizer_interval_days || 30,
+      fertilizer_type: plantData.fertilizer_type || 'کود مایع همه‌کاره',
+      fertilizer_tips: plantData.fertilizer_tips || '',
+      soil_type: plantData.soil_type || 'خاک غنی و زهکش‌دار',
+      soil_tips: plantData.soil_tips || '',
+      difficulty_level: plantData.difficulty_level || 'medium',
+      is_toxic_to_pets: plantData.is_toxic_to_pets || false,
+      is_air_purifying: plantData.is_air_purifying || false,
+      userImageUrl,
+      wikipediaImageUrl,
+      additionalImages
+    };
+  } catch (error: any) {
+    const totalElapsed = Date.now() - startTotal;
+    console.error(`خطا در شناسایی گیاه با PlantNet + Gemini بعد از ${totalElapsed}ms:`, error);
+    // فقط برای خطاهای شبکه/timeout backoff کن
+    const isNetworkError = error?.code === 'ECONNABORTED' || 
+                           error?.code === 'ENOTFOUND' ||
+                           error?.code === 'ETIMEDOUT' ||
+                           String(error?.message || '').includes('timeout') ||
+                           String(error?.message || '').includes('network');
+    if (isNetworkError) {
+      setPlantNetBackoff(`خطای شبکه: ${error?.message || error}`);
+    }
+    return await identifyPlantWithGemini(imagePath, mimeType);
   }
 };
 
@@ -415,6 +997,11 @@ const identifyPlantWithGemini = async (
 // POST /api/diagnosis/identify - شناسایی گیاه از فایل آپلود شده
 // ===================================
 router.post('/identify', upload.single('image'), async (req: Request, res: Response) => {
+  const requestStart = Date.now();
+  console.log('════════════════════════════════════════════════════════════');
+  console.log(`🚀 [API /identify] درخواست جدید در ${new Date().toISOString()}`);
+  console.log(`📋 [API /identify] typeAi: ${getAiType()} | usePlantNet: ${shouldUsePlantNet()}`);
+  
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -425,15 +1012,26 @@ router.post('/identify', upload.single('image'), async (req: Request, res: Respo
 
     const imagePath = req.file.path;
     const mimeType = req.file.mimetype;
+    const fileSize = (req.file.size / 1024).toFixed(1);
+    console.log(`📂 [API /identify] فایل: ${req.file.filename} | سایز: ${fileSize} KB | نوع: ${mimeType}`);
 
-    const result = await identifyPlantWithGemini(imagePath, mimeType);
+    const result = shouldUsePlantNet()
+      ? await identifyPlantWithPlantNetAndGemini(imagePath, mimeType)
+      : await identifyPlantWithGemini(imagePath, mimeType);
+
+    const totalElapsed = Date.now() - requestStart;
 
     if (!result) {
+      console.log(`❌ [API /identify] شکست در شناسایی بعد از ${totalElapsed}ms`);
+      console.log('════════════════════════════════════════════════════════════');
       return res.status(500).json({
         success: false,
         message: 'خطا در شناسایی گیاه. لطفاً دوباره تلاش کنید.'
       });
     }
+
+    console.log(`✅ [API /identify] موفقیت در ${totalElapsed}ms | گیاه: ${result.name} (${result.scientificName})`);
+    console.log('════════════════════════════════════════════════════════════');
 
     res.json({
       success: true,
@@ -441,7 +1039,9 @@ router.post('/identify', upload.single('image'), async (req: Request, res: Respo
       data: result
     });
   } catch (error) {
-    console.error('Identify error:', error);
+    const totalElapsed = Date.now() - requestStart;
+    console.error(`❌ [API /identify] خطا بعد از ${totalElapsed}ms:`, error);
+    console.log('════════════════════════════════════════════════════════════');
     res.status(500).json({
       success: false,
       message: 'خطا در شناسایی گیاه'
@@ -453,6 +1053,13 @@ router.post('/identify', upload.single('image'), async (req: Request, res: Respo
 // POST /api/diagnosis/identify-base64 - شناسایی گیاه از Base64
 // ===================================
 router.post('/identify-base64', async (req: Request, res: Response) => {
+  const requestStart = Date.now();
+  console.log('════════════════════════════════════════════════════════════');
+  console.log(`🚀 [API /identify-base64] درخواست جدید در ${new Date().toISOString()}`);
+  console.log(`📋 [API /identify-base64] typeAi: ${getAiType()} | typeIdentify: ${getIdentifyType()} | usePlantNet: ${shouldUsePlantNet()} | useOpenRouter: ${shouldUseOpenRouter()}`);
+  if (shouldUseOpenRouter()) {
+    console.log(`📋 [API /identify-base64] OpenRouter Models: ${getOpenRouterModels().join(', ')}`);
+  }  
   try {
     const { image, mimeType = 'image/jpeg' } = req.body;
 
@@ -469,15 +1076,27 @@ router.post('/identify-base64', async (req: Request, res: Response) => {
     
     const imageBuffer = Buffer.from(image, 'base64');
     fs.writeFileSync(imagePath, imageBuffer);
+    
+    const fileSize = (imageBuffer.length / 1024).toFixed(1);
+    console.log(`📂 [API /identify-base64] فایل: ${filename} | سایز: ${fileSize} KB | نوع: ${mimeType}`);
 
-    const result = await identifyPlantWithGemini(imagePath, mimeType);
+    const result = shouldUsePlantNet()
+      ? await identifyPlantWithPlantNetAndGemini(imagePath, mimeType)
+      : await identifyPlantWithGemini(imagePath, mimeType);
+
+    const totalElapsed = Date.now() - requestStart;
 
     if (!result) {
+      console.log(`❌ [API /identify-base64] شکست در شناسایی بعد از ${totalElapsed}ms`);
+      console.log('════════════════════════════════════════════════════════════');
       return res.status(500).json({
         success: false,
         message: 'خطا در شناسایی گیاه. لطفاً دوباره تلاش کنید.'
       });
     }
+
+    console.log(`✅ [API /identify-base64] موفقیت در ${totalElapsed}ms | گیاه: ${result.name} (${result.scientificName})`);
+    console.log('════════════════════════════════════════════════════════════');
 
     res.json({
       success: true,
@@ -485,7 +1104,9 @@ router.post('/identify-base64', async (req: Request, res: Response) => {
       data: result
     });
   } catch (error) {
-    console.error('Identify base64 error:', error);
+    const totalElapsed = Date.now() - requestStart;
+    console.error(`❌ [API /identify-base64] خطا بعد از ${totalElapsed}ms:`, error);
+    console.log('════════════════════════════════════════════════════════════');
     res.status(500).json({
       success: false,
       message: 'خطا در شناسایی گیاه'
@@ -703,6 +1324,55 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
       message: 'خطا در افزودن گیاه به باغچه'
     });
   }
+});
+
+// ===================================
+// GET /api/diagnosis/stats - آمار استفاده از کلیدها
+// ===================================
+router.get('/stats', async (req: Request, res: Response) => {
+  const keys = getGeminiApiKeys();
+  const maskedKeys = keys.map((k, i) => ({
+    index: i + 1,
+    masked: k.substring(0, 8) + '...' + k.substring(k.length - 4)
+  }));
+  
+  const plantNetBackoffRemaining = plantNetBackoffUntil > Date.now() 
+    ? Math.ceil((plantNetBackoffUntil - Date.now()) / 1000)
+    : 0;
+  
+  res.json({
+    success: true,
+    data: {
+      totalGeminiKeys: keys.length,
+      geminiKeys: maskedKeys,
+      geminiUsageStats: geminiKeyUsageStats,
+      aiType: getAiType(),
+      identifyType: getIdentifyType(),
+      usePlantNet: shouldUsePlantNet(),
+      useOpenRouter: shouldUseOpenRouter(),
+      openRouterModels: getOpenRouterModels(),
+      plantNetAvailable: isPlantNetAvailable(),
+      plantNetBackoff: {
+        active: !isPlantNetAvailable(),
+        remainingSeconds: plantNetBackoffRemaining,
+        reason: plantNetBackoffReason
+      }
+    }
+  });
+});
+
+// ===================================
+// POST /api/diagnosis/reset-plantnet - ریست کردن backoff PlantNet
+// ===================================
+router.post('/reset-plantnet', async (req: Request, res: Response) => {
+  const wasBacked = !isPlantNetAvailable();
+  clearPlantNetBackoff();
+  
+  res.json({
+    success: true,
+    message: wasBacked ? 'PlantNet backoff پاک شد' : 'PlantNet در حال حاضر backoff نداشت',
+    plantNetAvailable: isPlantNetAvailable()
+  });
 });
 
 export default router;

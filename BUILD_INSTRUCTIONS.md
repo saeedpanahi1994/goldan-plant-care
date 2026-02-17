@@ -57,4 +57,4 @@ git push
 
 مثلا
 
-git add .; git commit -m "feat: dbug ones"; git push
+git add .; git commit -m "feat: dbug twos"; git push

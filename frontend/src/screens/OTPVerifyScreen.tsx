@@ -129,6 +129,7 @@ const OTPContainer = styled.div<{ $hasError: boolean }>`
   justify-content: center;
   gap: 10px;
   margin-bottom: 24px;
+  direction: ltr;
   ${props => props.$hasError && css`animation: ${shake} 0.5s ease;`}
 `;
 
@@ -145,6 +146,7 @@ const OTPInput = styled.input<{ $filled: boolean; $hasError: boolean }>`
   outline: none;
   transition: all 0.3s ease;
   background: ${props => props.$filled ? 'rgba(76, 175, 80, 0.05)' : 'white'};
+  direction: ltr;
 
   &:focus {
     border-color: #4CAF50;
