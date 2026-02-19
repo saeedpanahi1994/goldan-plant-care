@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { Search, Leaf, ChevronLeft } from 'lucide-react';
+import { Search, Leaf, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -56,20 +56,18 @@ const TopBar = styled.div`
 const BackButton = styled.button`
   background: rgba(255, 255, 255, 0.2);
   border: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  border-radius: 12px;
+  padding: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  
+
   &:hover {
     background: rgba(255, 255, 255, 0.3);
-    transform: scale(1.05);
   }
-  
+
   svg {
     color: white;
   }
@@ -410,7 +408,7 @@ const PlantBankScreen: React.FC = () => {
       <HeaderSection>
         <TopBar>
           <BackButton onClick={() => navigate(-1)}>
-            <ChevronLeft size={24} />
+            <ArrowRight size={24} />
           </BackButton>
           <HeaderTitle>بانک گیاهان</HeaderTitle>
         </TopBar>

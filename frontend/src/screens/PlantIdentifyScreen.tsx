@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import styled, { keyframes } from 'styled-components';
-import { ArrowRight, Camera, Upload, Loader2, CheckCircle, AlertCircle, Droplets, Sun, Thermometer, Wind, Leaf, X, Image, Plus, Heart, ShieldAlert } from 'lucide-react';
+import { ArrowRight, Camera, Upload, Loader2, CheckCircle, AlertCircle, Droplets, Sun, Thermometer, Wind, Leaf, X, Image, Plus, Heart, ShieldAlert, Check, Circle } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { identifyPlantFromFile, identifyPlantFromBase64, identifyDiseaseFromFile, identifyDiseaseFromBase64, PlantIdentificationResult, addIdentifiedPlantToGarden, getDefaultGarden } from '../services/plantApiService';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -39,11 +39,11 @@ const ScreenContainer = styled.div`
 
 const Header = styled.header`
   background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 50%, #43A047 100%);
-  padding: 20px;
+  padding: 10px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 4px 20px rgba(76, 175, 80, 0.2);
+  box-shadow: 0 2px 10px rgba(76, 175, 80, 0.2);
 `;
 
 const BackButton = styled.button`
@@ -240,62 +240,26 @@ const LoadingSpinner = styled(Loader2)`
 
 // Loading State
 const LoadingContainer = styled.div`
-  background: white;
-  border-radius: 24px;
-  padding: 48px 24px;
-  box-shadow: 0 8px 32px rgba(76, 175, 80, 0.1);
-  text-align: center;
-  animation: ${fadeIn} 0.5s ease;
-`;
-
-const LoadingIcon = styled.div`
-  width: 100px;
-  height: 100px;
-  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
-  border-radius: 50%;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  margin: 0 auto 24px;
-  animation: ${pulse} 2s ease-in-out infinite;
-
-  svg {
-    color: #4CAF50;
-    animation: ${spin} 2s linear infinite;
-  }
+  margin-top: 20px;
+  animation: ${fadeIn} 0.5s ease;
 `;
 
 const LoadingText = styled.p`
   font-family: 'Vazirmatn', sans-serif;
   font-size: 16px;
   font-weight: 600;
-  color: #2e7d32;
-  margin: 0 0 8px 0;
+  color: #424242;
+  margin: 16px 0 8px;
 `;
 
 const LoadingHint = styled.p`
   font-family: 'Vazirmatn', sans-serif;
   font-size: 13px;
-  color: #9e9e9e;
-  margin: 0;
-`;
-
-const LoadingBar = styled.div`
-  height: 4px;
-  background: #e0e0e0;
-  border-radius: 2px;
-  margin-top: 24px;
-  overflow: hidden;
-
-  &::after {
-    content: '';
-    display: block;
-    height: 100%;
-    width: 40%;
-    background: linear-gradient(90deg, #4CAF50, #81C784, #4CAF50);
-    background-size: 200% 100%;
-    animation: ${shimmer} 1.5s infinite;
-  }
+  color: #757575;
+  margin: 0 0 24px;
 `;
 
 // Result State
@@ -744,6 +708,56 @@ const ErrorHint = styled.p`
   margin: 0;
 `;
 
+// Progress Steps
+const ProgressContainer = styled.div`
+  background: white;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(76, 175, 80, 0.1);
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: 'Vazirmatn', sans-serif;
+`;
+
+interface StepProps {
+  $active?: boolean;
+  $completed?: boolean;
+}
+
+const StepItem = styled.div<StepProps>`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: ${props => props.$active || props.$completed ? 1 : 0.5};
+  transition: all 0.3s ease;
+  
+  svg {
+    color: ${props => props.$completed ? '#4CAF50' : props.$active ? '#2196F3' : '#BDBDBD'};
+  }
+`;
+
+const StepText = styled.span<StepProps>`
+  font-size: 14px;
+  color: ${props => props.$active || props.$completed ? '#212121' : '#9E9E9E'};
+  font-weight: ${props => props.$active ? '700' : '400'};
+`;
+
+const StepSpinner = styled.div`
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #2196F3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
 // =====================
 // Component
 // =====================
@@ -759,6 +773,7 @@ const PlantIdentifyScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<PlantIdentificationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progressStep, setProgressStep] = useState(0);
   
   // state های جدید برای افزودن به باغچه
   const [addingToGarden, setAddingToGarden] = useState(false);
@@ -903,6 +918,7 @@ const PlantIdentifyScreen: React.FC = () => {
     setResult(null);
     setError(null);
     setAddedToGarden(false);
+    setProgressStep(0);
     setActiveImageIndex(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -914,9 +930,18 @@ const PlantIdentifyScreen: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
+    setProgressStep(1); // شروع مرحله 1: ارسال تصویر
+
+    // تایمر برای شبیه‌سازی مراحل پیشرفت
+    const progressTimer = setInterval(() => {
+      setProgressStep(prev => {
+        if (prev < 3) return prev + 1;
+        return prev;
+      });
+    }, 2500); // هر 2.5 ثانیه یک مرحله جلو برو
 
     try {
-      let response;
+      let response: any;
       
       // اگر از دوربین Capacitor عکس گرفته شده، از Base64 استفاده کن
       if (base64Image && !selectedFile) {
@@ -931,17 +956,26 @@ const PlantIdentifyScreen: React.FC = () => {
       } else {
         setError('لطفاً ابتدا یک عکس انتخاب کنید');
         setIsLoading(false);
+        clearInterval(progressTimer);
         return;
       }
       
-      if (response.success && response.data) {
-        setResult(response.data);
-      } else {
-        setError(response.message || (isDiseaseMode ? 'خطا در شناسایی بیماری گیاه' : 'خطا در شناسایی گیاه'));
-      }
+      clearInterval(progressTimer);
+      setProgressStep(4); // مرحله آخر: دریافت اطلاعات
+
+      // یک وقفه کوتاه برای نمایش مرحله آخر قبل از نمایش نتیجه
+      setTimeout(() => {
+        if (response.success && response.data) {
+          setResult(response.data);
+        } else {
+          setError(response.message || (isDiseaseMode ? 'خطا در شناسایی بیماری گیاه' : 'خطا در شناسایی گیاه'));
+        }
+        setIsLoading(false);
+      }, 1000);
+
     } catch (err) {
+      clearInterval(progressTimer);
       setError('خطا در اتصال به سرور. لطفاً دوباره تلاش کنید.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -957,8 +991,6 @@ const PlantIdentifyScreen: React.FC = () => {
 
   return (
     <ScreenContainer>
-      <HeaderComponent title={isDiseaseMode ? 'شناسایی بیماری گیاه' : 'شناسایی گیاه'} />
-      
       <Header>
         <BackButton onClick={() => navigate(-1)}>
           <ArrowRight size={24} />
@@ -969,14 +1001,35 @@ const PlantIdentifyScreen: React.FC = () => {
       <Content>
         {/* Loading State */}
         {isLoading && (
-          <LoadingContainer>
-            <LoadingIcon>
-              <Loader2 size={48} />
-            </LoadingIcon>
-            <LoadingText>{isDiseaseMode ? 'در حال شناسایی بیماری گیاه...' : 'در حال شناسایی گیاه...'}</LoadingText>
-            <LoadingHint>هوش مصنوعی در حال تحلیل تصویر است</LoadingHint>
-            <LoadingBar />
-          </LoadingContainer>
+          <ProgressContainer>
+            <StepItem $completed={progressStep > 1} $active={progressStep === 1}>
+              {progressStep > 1 ? <Check size={20} /> : progressStep === 1 ? <StepSpinner /> : <Circle size={20} />}
+              <StepText $completed={progressStep > 1} $active={progressStep === 1}>
+                {isDiseaseMode ? 'ارسال تصویر برگ بیمار' : 'ارسال تصویر به سرور'}
+              </StepText>
+            </StepItem>
+
+            <StepItem $completed={progressStep > 2} $active={progressStep === 2}>
+              {progressStep > 2 ? <Check size={20} /> : progressStep === 2 ? <StepSpinner /> : <Circle size={20} />}
+              <StepText $completed={progressStep > 2} $active={progressStep === 2}>
+                {isDiseaseMode ? 'تحلیل علائم بیماری' : 'شناسایی هوشمند گیاه'}
+              </StepText>
+            </StepItem>
+
+            <StepItem $completed={progressStep > 3} $active={progressStep === 3}>
+              {progressStep > 3 ? <Check size={20} /> : progressStep === 3 ? <StepSpinner /> : <Circle size={20} />}
+              <StepText $completed={progressStep > 3} $active={progressStep === 3}>
+                {isDiseaseMode ? 'یافتن راهکارهای درمانی' : 'جستجو در بانک اطلاعاتی گیاهان'}
+              </StepText>
+            </StepItem>
+
+            <StepItem $completed={progressStep > 4} $active={progressStep === 4}>
+              {progressStep > 4 ? <Check size={20} /> : progressStep === 4 ? <StepSpinner /> : <Circle size={20} />}
+              <StepText $completed={progressStep > 4} $active={progressStep === 4}>
+                آماده‌سازی و نمایش اطلاعات
+              </StepText>
+            </StepItem>
+          </ProgressContainer>
         )}
 
         {/* Error State */}

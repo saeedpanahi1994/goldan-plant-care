@@ -57,16 +57,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const storedUser = localStorage.getItem(USER_KEY);
 
       if (storedToken && storedUser) {
-        // Verify token with server
-        const isValid = await verifyToken(storedToken);
-        
-        if (isValid) {
+        // ابتدا بررسی آنلاین بودن
+        if (navigator.onLine) {
+          // آنلاین: اعتبارسنجی توکن با سرور
+          const isValid = await verifyToken(storedToken);
+          
+          if (isValid) {
+            setToken(storedToken);
+            setUser(JSON.parse(storedUser));
+            setIsAuthenticated(true);
+          } else {
+            // توکن نامعتبر است، پاک کن
+            clearStorage();
+          }
+        } else {
+          // آفلاین: به توکن محلی اعتماد کن
+          console.log('📴 حالت آفلاین: ورود با توکن محلی');
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
           setIsAuthenticated(true);
-        } else {
-          // Token invalid, clear storage
-          clearStorage();
         }
       }
       
@@ -91,7 +100,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return data.success && data.valid;
     } catch (error) {
       console.error('Token verification error:', error);
-      return false;
+      // خطای شبکه: به توکن محلی اعتماد کن (حالت آفلاین)
+      return true;
     }
   };
 
@@ -139,6 +149,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Check auth status (can be called manually)
   const checkAuth = async (): Promise<boolean> => {
     if (!token) return false;
+    
+    // اگر آفلاین هستیم، به توکن محلی اعتماد کن
+    if (!navigator.onLine) {
+      console.log('📴 حالت آفلاین: توکن محلی معتبر فرض می‌شود');
+      return true;
+    }
     
     const isValid = await verifyToken(token);
     

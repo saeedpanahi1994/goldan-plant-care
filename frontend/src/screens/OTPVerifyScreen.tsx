@@ -35,16 +35,23 @@ const success = keyframes`
 // Styled Components
 const ScreenContainer = styled.div`
   min-height: 100vh;
+  width: 100%;
   background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 30%, #a5d6a7 70%, #81c784 100%);
   display: flex;
   flex-direction: column;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
 `;
 
 const Header = styled.header`
   padding: 20px 24px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
 `;
 
 const BackButton = styled.button`
@@ -59,15 +66,7 @@ const BackButton = styled.button`
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
-
-  svg {
-    color: #1b5e20;
-  }
-
-  &:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-  }
+  z-index: 10;
 `;
 
 const ContentArea = styled.div`

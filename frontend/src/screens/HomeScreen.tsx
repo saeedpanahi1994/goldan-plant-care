@@ -86,14 +86,14 @@ const HomeScreen: React.FC = () => {
         onClick={handleRecommendationClick}
       />
 
-      <FeatureCard
+      {/* <FeatureCard
         emoji="🌤️"
         title="وضعیت نگهداری"
         description="اطلاع از دمای شهر برای نگهداری گل و گیاه"
         buttonText="آنالیز محیط"
         backgroundColor="#E3F2FD"
         onClick={handleWeatherClick}
-      />
+      /> */}
     </ScreenContainer>
   );
 };

@@ -406,12 +406,11 @@ const ReminderModal: React.FC<ReminderModalProps> = ({
   const fertilizingIntervalOptions = [
     { label: 'هر هفته', days: 7 },
     { label: 'هر ۲ هفته', days: 14 },
-    { label: 'هر ماه', days: 30 },
-    { label: 'هر ۲ ماه', days: 60 },
-    { label: 'هر ۳ ماه', days: 90 },
+    { label: 'هر ماه', days: 30 }
+    
   ];
 
-  const fertilizerTypes = ['کود ۲۰-۲۰-۲۰', 'هیومیک اسید', 'کود جلبک', 'NPK', 'کود مایع', 'کود ارگانیک'];
+  const fertilizerTypes = ['کود ۲۰-۲۰-۲۰', 'کود گل دهی', 'کود ریشه زا', 'کود برگ دهی'];
 
   const intervalOptions = selectedType === 'watering' ? wateringIntervalOptions : fertilizingIntervalOptions;
   const currentDefaultInterval = selectedType === 'watering' ? defaultWateringInterval : defaultFertilizerInterval;
