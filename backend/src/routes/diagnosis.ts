@@ -9,6 +9,8 @@ import axios from 'axios';
 import sharp from 'sharp';
 import { authMiddleware } from './auth';
 import { query } from '../config/database';
+import { checkUsageLimit, trackUsage, consumePurchasedScan } from './subscription';
+import userService from '../services/userService';
 
 const router = Router();
 
@@ -1327,15 +1329,47 @@ const identifyPlantWithPlantNetAndGemini = async (
 };
 
 // ===================================
+// Middleware - Optional Auth (بدون بلاک کردن، فقط کاربر را attach می‌کند)
+// ===================================
+const optionalAuthMiddleware = async (req: Request, res: Response, next: Function) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    try {
+      const user = await userService.verifyAuthToken(token);
+      if (user) {
+        (req as any).user = user;
+      }
+    } catch (e) {
+      // نادیده بگیر
+    }
+  }
+  next();
+};
+
+// ===================================
 // POST /api/diagnosis/identify - شناسایی گیاه از فایل آپلود شده
 // ===================================
-router.post('/identify', upload.single('image'), async (req: Request, res: Response) => {
+router.post('/identify', optionalAuthMiddleware, upload.single('image'), async (req: Request, res: Response) => {
   const requestStart = Date.now();
   console.log('════════════════════════════════════════════════════════════');
   console.log(`🚀 [API /identify] درخواست جدید در ${new Date().toISOString()}`);
   console.log(`📋 [API /identify] typeAi: ${getAiType()} | usePlantNet: ${shouldUsePlantNet()}`);
   
   try {
+    // بررسی محدودیت مصرف
+    const user = (req as any).user;
+    if (user) {
+      const usageCheck = await checkUsageLimit(user.id, 'identify');
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: `سهمیه ${usageCheck.period} شناسایی گیاه شما تمام شده (${usageCheck.limit} از ${usageCheck.limit})`,
+          usageInfo: usageCheck,
+          upgradeRequired: usageCheck.tier === 'free',
+        });
+      }
+    }
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -1366,6 +1400,11 @@ router.post('/identify', upload.single('image'), async (req: Request, res: Respo
     console.log(`✅ [API /identify] موفقیت در ${totalElapsed}ms | گیاه: ${result.name} (${result.scientificName}) | منبع: ${result.confidence >= 0.95 ? 'دیتابیس (کش)' : 'AI'}`);
     console.log('════════════════════════════════════════════════════════════');
 
+    // ثبت مصرف
+    if (user) {
+      await trackUsage(user.id, 'identify');
+    }
+
     res.json({
       success: true,
       message: 'گیاه با موفقیت شناسایی شد',
@@ -1385,7 +1424,7 @@ router.post('/identify', upload.single('image'), async (req: Request, res: Respo
 // ===================================
 // POST /api/diagnosis/identify-base64 - شناسایی گیاه از Base64
 // ===================================
-router.post('/identify-base64', async (req: Request, res: Response) => {
+router.post('/identify-base64', optionalAuthMiddleware, async (req: Request, res: Response) => {
   const requestStart = Date.now();
   console.log('════════════════════════════════════════════════════════════');
   console.log(`🚀 [API /identify-base64] درخواست جدید در ${new Date().toISOString()}`);
@@ -1394,6 +1433,20 @@ router.post('/identify-base64', async (req: Request, res: Response) => {
     console.log(`📋 [API /identify-base64] OpenRouter Models: ${getOpenRouterModels().join(', ')}`);
   }  
   try {
+    // بررسی محدودیت مصرف
+    const user = (req as any).user;
+    if (user) {
+      const usageCheck = await checkUsageLimit(user.id, 'identify');
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: `سهمیه ${usageCheck.period} شناسایی گیاه شما تمام شده (${usageCheck.limit} از ${usageCheck.limit})`,
+          usageInfo: usageCheck,
+          upgradeRequired: usageCheck.tier === 'free',
+        });
+      }
+    }
+
     const { image, mimeType = 'image/jpeg' } = req.body;
 
     if (!image) {
@@ -1431,6 +1484,11 @@ router.post('/identify-base64', async (req: Request, res: Response) => {
     console.log(`✅ [API /identify-base64] موفقیت در ${totalElapsed}ms | گیاه: ${result.name} (${result.scientificName}) | منبع: ${result.confidence >= 0.95 ? 'دیتابیس (کش)' : 'AI'}`);
     console.log('════════════════════════════════════════════════════════════');
 
+    // ثبت مصرف
+    if (user) {
+      await trackUsage(user.id, 'identify');
+    }
+
     res.json({
       success: true,
       message: 'گیاه با موفقیت شناسایی شد',
@@ -1450,8 +1508,22 @@ router.post('/identify-base64', async (req: Request, res: Response) => {
 // ===================================
 // POST /api/diagnosis/disease - شناسایی بیماری از فایل آپلود شده
 // ===================================
-router.post('/disease', upload.single('image'), async (req: Request, res: Response) => {
+router.post('/disease', optionalAuthMiddleware, upload.single('image'), async (req: Request, res: Response) => {
   try {
+    // بررسی محدودیت مصرف
+    const user = (req as any).user;
+    if (user) {
+      const usageCheck = await checkUsageLimit(user.id, 'disease');
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: `سهمیه ${usageCheck.period} تشخیص بیماری شما تمام شده`,
+          usageInfo: usageCheck,
+          upgradeRequired: true,
+        });
+      }
+    }
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -1471,6 +1543,15 @@ router.post('/disease', upload.single('image'), async (req: Request, res: Respon
       });
     }
 
+    // ثبت مصرف و مصرف اسکن خریداری شده در صورت نیاز
+    if (user) {
+      const currentUsage = await checkUsageLimit(user.id, 'disease');
+      if (currentUsage.remaining <= 0 && currentUsage.purchasedScansRemaining && currentUsage.purchasedScansRemaining > 0) {
+        await consumePurchasedScan(user.id);
+      }
+      await trackUsage(user.id, 'disease');
+    }
+
     res.json({
       success: true,
       message: 'بیماری گیاه با موفقیت شناسایی شد',
@@ -1488,8 +1569,22 @@ router.post('/disease', upload.single('image'), async (req: Request, res: Respon
 // ===================================
 // POST /api/diagnosis/disease-base64 - شناسایی بیماری از Base64
 // ===================================
-router.post('/disease-base64', async (req: Request, res: Response) => {
+router.post('/disease-base64', optionalAuthMiddleware, async (req: Request, res: Response) => {
   try {
+    // بررسی محدودیت مصرف
+    const user = (req as any).user;
+    if (user) {
+      const usageCheck = await checkUsageLimit(user.id, 'disease');
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: `سهمیه ${usageCheck.period} تشخیص بیماری شما تمام شده`,
+          usageInfo: usageCheck,
+          upgradeRequired: true,
+        });
+      }
+    }
+
     const { image, mimeType = 'image/jpeg' } = req.body;
 
     if (!image) {
@@ -1512,6 +1607,15 @@ router.post('/disease-base64', async (req: Request, res: Response) => {
         success: false,
         message: 'خطا در شناسایی بیماری گیاه. لطفاً دوباره تلاش کنید.'
       });
+    }
+
+    // ثبت مصرف
+    if (user) {
+      const currentUsage = await checkUsageLimit(user.id, 'disease');
+      if (currentUsage.remaining <= 0 && currentUsage.purchasedScansRemaining && currentUsage.purchasedScansRemaining > 0) {
+        await consumePurchasedScan(user.id);
+      }
+      await trackUsage(user.id, 'disease');
     }
 
     res.json({
@@ -1540,6 +1644,19 @@ router.post('/add-to-garden', authMiddleware, async (req: Request, res: Response
       return res.status(400).json({
         success: false,
         message: 'اطلاعات گیاه و شناسه باغچه الزامی است'
+      });
+    }
+
+    // بررسی محدودیت تعداد گیاه
+    const { getUserTier: getTier, getUserPlantCount: getPlantCount, PLAN_LIMITS: planLimits } = require('./subscription');
+    const tier = await getTier(user.id);
+    const limits = planLimits[tier];
+    const currentCount = await getPlantCount(user.id);
+    if (currentCount >= limits.max_plants) {
+      return res.status(403).json({
+        success: false,
+        message: `شما به حداکثر تعداد گیاه (${limits.max_plants} گیاه) رسیده‌اید. ${tier === 'free' ? 'برای افزودن گیاه بیشتر، اشتراک تهیه کنید.' : ''}`,
+        upgradeRequired: tier === 'free',
       });
     }
 

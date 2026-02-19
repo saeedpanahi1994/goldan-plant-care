@@ -21,6 +21,8 @@ import notificationRoutes from './routes/notifications';
 import plantBankRoutes from './routes/plantBank';
 import diagnosisRoutes from './routes/diagnosis';
 import chatRoutes from './routes/chat';
+import subscriptionRoutes from './routes/subscription';
+import paymentRoutes from './routes/payment';
 
 const app = express();
 const PORT = process.env.PORT || 4380;
@@ -101,6 +103,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/plant-bank', plantBankRoutes);
 app.use('/api/diagnosis', diagnosisRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

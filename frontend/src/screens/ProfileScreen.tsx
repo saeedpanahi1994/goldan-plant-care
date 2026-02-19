@@ -193,10 +193,10 @@ const ProfileScreen: React.FC = () => {
       </ProfileCard>
 
       <MenuSection>
-        <MenuItem>
+        <MenuItem onClick={() => navigate('/subscription')}>
           <Crown size={20} style={{ color: '#FFD700' }} />
-          <MenuText>وضعیت اشتراک</MenuText>
-          <StatusBadge>نسخه رایگان</StatusBadge>
+          <MenuText>اشتراک و خرید</MenuText>
+          <MenuArrow>‹</MenuArrow>
         </MenuItem>
 
         <MenuItem onClick={() => navigate('/smart-chat')}>

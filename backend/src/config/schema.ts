@@ -326,6 +326,86 @@ export const initializeDatabase = async (): Promise<void> => {
     await query(`CREATE INDEX IF NOT EXISTS idx_plant_chat_user ON plant_chat_history(user_id);`);
 
     // ===================================
+    // 15. User Subscriptions Table - اشتراک‌های کاربران
+    // ===================================
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        plan_type VARCHAR(20) NOT NULL CHECK (plan_type IN ('monthly', 'yearly')),
+        status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expired', 'cancelled')),
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+        payment_amount INTEGER NOT NULL,
+        payment_ref VARCHAR(100),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ جدول user_subscriptions ایجاد شد');
+    await query(`CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user ON user_subscriptions(user_id);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON user_subscriptions(status, expires_at);`);
+
+    // ===================================
+    // 16. User Scan Purchases - خرید پکیج اسکن بیماری
+    // ===================================
+    await query(`
+      CREATE TABLE IF NOT EXISTS user_scan_purchases (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        package_type VARCHAR(20) NOT NULL CHECK (package_type IN ('5_scans', '10_scans')),
+        total_scans INTEGER NOT NULL,
+        used_scans INTEGER NOT NULL DEFAULT 0,
+        payment_amount INTEGER NOT NULL,
+        payment_ref VARCHAR(100),
+        purchased_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP WITH TIME ZONE
+      );
+    `);
+    console.log('✅ جدول user_scan_purchases ایجاد شد');
+    await query(`CREATE INDEX IF NOT EXISTS idx_user_scan_purchases_user ON user_scan_purchases(user_id);`);
+
+    // ===================================
+    // 17. Usage Tracking Table - ردیابی مصرف کاربران
+    // ===================================
+    await query(`
+      CREATE TABLE IF NOT EXISTS usage_tracking (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        action_type VARCHAR(30) NOT NULL CHECK (action_type IN ('identify', 'identify_pro', 'disease', 'chat')),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ جدول usage_tracking ایجاد شد');
+    await query(`CREATE INDEX IF NOT EXISTS idx_usage_tracking_user ON usage_tracking(user_id);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_usage_tracking_action ON usage_tracking(user_id, action_type, created_at);`);
+
+    // ===================================
+    // 18. Pending Payments Table - پرداخت‌های در انتظار (زرین‌پال)
+    // ===================================
+    await query(`
+      CREATE TABLE IF NOT EXISTS pending_payments (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        authority VARCHAR(100) UNIQUE NOT NULL,
+        amount INTEGER NOT NULL,
+        amount_rial INTEGER NOT NULL,
+        payment_type VARCHAR(20) NOT NULL CHECK (payment_type IN ('subscription', 'scan_package')),
+        plan_type VARCHAR(20),
+        package_type VARCHAR(20),
+        description TEXT,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'failed', 'expired')),
+        ref_id VARCHAR(100),
+        card_pan VARCHAR(30),
+        verified_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ جدول pending_payments ایجاد شد');
+    await query(`CREATE INDEX IF NOT EXISTS idx_pending_payments_user ON pending_payments(user_id);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_pending_payments_authority ON pending_payments(authority);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_pending_payments_status ON pending_payments(status);`);
+
+    // ===================================
     // Insert Default Plant Categories
     // ===================================
     await query(`
@@ -360,6 +440,10 @@ export const dropAllTables = async (): Promise<void> => {
   }
 
   const tables = [
+    'pending_payments',
+    'usage_tracking',
+    'user_scan_purchases',
+    'user_subscriptions',
     'notifications',
     'notification_settings',
     'care_activities',

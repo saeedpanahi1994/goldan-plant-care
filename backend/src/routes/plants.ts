@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from './auth';
 import * as plantService from '../services/plantService';
+import { getUserTier, getUserPlantCount, PLAN_LIMITS } from './subscription';
 
 const router = Router();
 
@@ -162,6 +163,20 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const { garden_id, plant_id, nickname, custom_watering_interval, custom_fertilizer_interval, acquired_date, notes } = req.body;
+
+    // بررسی محدودیت تعداد گیاه
+    const tier = await getUserTier(user.id);
+    const limits = PLAN_LIMITS[tier];
+    const currentCount = await getUserPlantCount(user.id);
+    if (currentCount >= limits.max_plants) {
+      return res.status(403).json({
+        success: false,
+        message: `شما به حداکثر تعداد گیاه (${limits.max_plants} گیاه) رسیده‌اید. ${tier === 'free' ? 'برای افزودن گیاه بیشتر، اشتراک تهیه کنید.' : ''}`,
+        upgradeRequired: tier === 'free',
+        currentCount,
+        maxPlants: limits.max_plants,
+      });
+    }
 
     // Validate required fields
     if (!plant_id) {

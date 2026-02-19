@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from './auth';
 import { query } from '../config/database';
 import { askPlantExpert } from '../services/chatService';
+import { checkUsageLimit, trackUsage } from './subscription';
 
 const router = Router();
 
@@ -11,6 +12,18 @@ const router = Router();
 router.post('/ask', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
+
+    // بررسی محدودیت مصرف چت
+    const usageCheck = await checkUsageLimit(user.id, 'chat');
+    if (!usageCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        message: `سهمیه ${usageCheck.period} چت هوشمند شما تمام شده (${usageCheck.limit} پیام)`,
+        usageInfo: usageCheck,
+        upgradeRequired: usageCheck.tier === 'free',
+      });
+    }
+
     const { plantId, plantName, question, context } = req.body;
 
     if (!question) {
@@ -28,6 +41,9 @@ router.post('/ask', authMiddleware, async (req: Request, res: Response) => {
       INSERT INTO plant_chat_history (user_id, plant_id, plant_name, question, answer)
       VALUES ($1, $2, $3, $4, $5)
     `, [user.id, plantId || null, plantName || null, question, answer]);
+
+    // 3. ثبت مصرف
+    await trackUsage(user.id, 'chat');
 
     res.json({
       success: true,
