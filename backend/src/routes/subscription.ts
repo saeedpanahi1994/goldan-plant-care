@@ -32,7 +32,7 @@ export const SUBSCRIPTION_PLANS = {
   monthly: {
     id: 'monthly',
     name: 'اشتراک ماهانه',
-    price: 69000, // تومان
+    price: 19000, // تومان
     duration_days: 30,
   },
   yearly: {

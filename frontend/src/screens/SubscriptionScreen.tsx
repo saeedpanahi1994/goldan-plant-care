@@ -892,7 +892,7 @@ const SubscriptionScreen: React.FC = () => {
   };
 
   const getPlanPrice = () => {
-    return selectedPlan === 'monthly' ? 69000 : 499000;
+    return selectedPlan === 'monthly' ? 16000 : 499000;
   };
 
   const getScanPackPrice = () => {
