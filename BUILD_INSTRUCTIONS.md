@@ -25,7 +25,7 @@
 git add .
 
 # 2. تغییرات را ذخیره کنید (پیام دلخواه خود را بنویسید)
-git commit -m "تغییرات جدید: اضافه شدن دکمه خرید"
+git commit -m "تغییرات جدید: اضافه شدن خرید اشتراک  "
 
 # 3. ارسال به گیت‌هاب (این دستور روند ساخت APK را شروع می‌کند)
 git push
@@ -57,4 +57,4 @@ git push
 
 مثلا
 
-git add .; git commit -m "feat: dbug twos"; git push
+git add .; git commit -m "feat: add offline mode"; git push

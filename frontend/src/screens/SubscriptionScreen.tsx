@@ -3,10 +3,12 @@ import styled, { keyframes, css } from 'styled-components';
 import { 
   ArrowRight, Crown, Zap, Leaf, Camera, MessageCircle, 
   Shield, Check, Star, Sparkles, ShoppingCart, ChevronDown,
-  ChevronUp, AlertCircle, Package, CreditCard, X, Droplets
+  ChevronUp, AlertCircle, Package, CreditCard, X, Droplets,
+  CheckCircle, XCircle, Home
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { Browser } from '@capacitor/browser';
 
 const API_URL = 'http://130.185.76.46:4380/api';
 
@@ -701,6 +703,15 @@ const SubscriptionScreen: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<'subscribe' | 'scan'>('subscribe');
   const [purchasing, setPurchasing] = useState(false);
+  
+  // وضعیت نتیجه پرداخت (نمایش داخل اپ)
+  const [paymentResult, setPaymentResult] = useState<{
+    show: boolean;
+    success: boolean;
+    message: string;
+    refId?: string;
+    checking: boolean;
+  }>({ show: false, success: false, message: '', checking: false });
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -724,6 +735,12 @@ const SubscriptionScreen: React.FC = () => {
 
   useEffect(() => {
     fetchStatus();
+    
+    // بررسی پرداخت معلق هنگام بازگشت به صفحه
+    const authority = localStorage.getItem('pending_payment_authority');
+    if (authority) {
+      checkPendingPayment();
+    }
   }, [fetchStatus]);
 
   const handleSubscribe = () => {
@@ -762,9 +779,19 @@ const SubscriptionScreen: React.FC = () => {
         // ذخیره authority برای بررسی بعدی
         localStorage.setItem('pending_payment_authority', response.data.authority);
         
-        // هدایت به درگاه پرداخت زرین‌پال
         setShowModal(false);
-        window.location.href = response.data.payment_url;
+
+        // باز کردن درگاه پرداخت در مرورگر درون‌برنامه‌ای
+        const listener = await Browser.addListener('browserFinished', async () => {
+          // وقتی کاربر مرورگر رو بست، وضعیت پرداخت رو چک کن
+          listener.remove();
+          await checkPendingPayment();
+        });
+
+        await Browser.open({ 
+          url: response.data.payment_url,
+          presentationStyle: 'popover',
+        });
       } else {
         alert('خطا در ایجاد لینک پرداخت. لطفاً دوباره تلاش کنید.');
       }
@@ -775,6 +802,62 @@ const SubscriptionScreen: React.FC = () => {
     } finally {
       setPurchasing(false);
     }
+  };
+
+  // بررسی وضعیت پرداخت معلق بعد از بسته شدن مرورگر
+  const checkPendingPayment = async () => {
+    const authority = localStorage.getItem('pending_payment_authority');
+    if (!authority) return;
+
+    setPaymentResult({ show: true, success: false, message: '', checking: true });
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await axios.get(`${API_URL}/payment/check/${authority}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        const payment = response.data.payment;
+        if (payment.status === 'verified') {
+          setPaymentResult({
+            show: true,
+            success: true,
+            message: payment.payment_type === 'subscription' 
+              ? 'اشتراک شما با موفقیت فعال شد! 🎉' 
+              : 'پکیج تشخیص بیماری با موفقیت خریداری شد! 🎉',
+            refId: payment.ref_id,
+            checking: false,
+          });
+          // بازخوانی وضعیت اشتراک
+          fetchStatus();
+        } else if (payment.status === 'failed') {
+          setPaymentResult({
+            show: true,
+            success: false,
+            message: 'پرداخت ناموفق بود. در صورت کسر مبلغ، ظرف ۷۲ ساعت به حسابتان برگشت داده می‌شود.',
+            checking: false,
+          });
+        } else {
+          // هنوز pending هست - شاید کاربر زودتر بسته
+          setPaymentResult({
+            show: true,
+            success: false,
+            message: 'پرداخت انجام نشد یا لغو شد.',
+            checking: false,
+          });
+        }
+      }
+    } catch (error) {
+      setPaymentResult({
+        show: true,
+        success: false,
+        message: 'خطا در بررسی وضعیت پرداخت.',
+        checking: false,
+      });
+    }
+
+    localStorage.removeItem('pending_payment_authority');
   };
 
   const isPro = subscription?.tier === 'subscriber';
@@ -1145,6 +1228,87 @@ const SubscriptionScreen: React.FC = () => {
               انصراف
             </ModalButton>
           </ModalButtons>
+        </ModalContent>
+      </ModalOverlay>
+
+      {/* نتیجه پرداخت - نمایش داخل اپ */}
+      <ModalOverlay $visible={paymentResult.show} onClick={() => {}}>
+        <ModalContent $visible={paymentResult.show} onClick={e => e.stopPropagation()}>
+          {paymentResult.checking ? (
+            <div style={{ textAlign: 'center', padding: '30px 0' }}>
+              <div style={{ 
+                width: 50, height: 50, margin: '0 auto 16px',
+                border: '4px solid rgba(76,175,80,0.1)', borderTopColor: '#4CAF50',
+                borderRadius: '50%', animation: 'spin 0.8s linear infinite'
+              }} />
+              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              <p style={{ fontFamily: 'Vazirmatn', color: '#4CAF50', fontWeight: 600, fontSize: 15 }}>
+                در حال بررسی وضعیت پرداخت...
+              </p>
+            </div>
+          ) : (
+            <>
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%',
+                background: paymentResult.success ? '#e8f5e9' : '#ffebee',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 20px',
+              }}>
+                {paymentResult.success 
+                  ? <CheckCircle size={40} color="#4CAF50" />
+                  : <XCircle size={40} color="#F44336" />
+                }
+              </div>
+
+              <ModalTitle>
+                {paymentResult.success ? '🎉 پرداخت موفق!' : '❌ پرداخت ناموفق'}
+              </ModalTitle>
+              
+              <ModalDescription>
+                {paymentResult.message}
+              </ModalDescription>
+
+              {paymentResult.refId && (
+                <ModalPriceRow>
+                  <ModalPriceLabel>شماره تراکنش</ModalPriceLabel>
+                  <ModalPriceValue style={{ fontSize: 16 }}>{paymentResult.refId}</ModalPriceValue>
+                </ModalPriceRow>
+              )}
+
+              <ModalButtons>
+                {paymentResult.success ? (
+                  <ModalButton 
+                    $variant="confirm" 
+                    onClick={() => {
+                      setPaymentResult({ ...paymentResult, show: false });
+                    }}
+                  >
+                    متوجه شدم ✓
+                  </ModalButton>
+                ) : (
+                  <>
+                    <ModalButton 
+                      $variant="confirm" 
+                      onClick={() => {
+                        setPaymentResult({ ...paymentResult, show: false });
+                      }}
+                    >
+                      تلاش مجدد
+                    </ModalButton>
+                    <ModalButton 
+                      $variant="cancel" 
+                      onClick={() => {
+                        setPaymentResult({ ...paymentResult, show: false });
+                        navigate('/');
+                      }}
+                    >
+                      بازگشت
+                    </ModalButton>
+                  </>
+                )}
+              </ModalButtons>
+            </>
+          )}
         </ModalContent>
       </ModalOverlay>
     </ScreenContainer>
