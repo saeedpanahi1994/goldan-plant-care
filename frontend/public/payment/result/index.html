@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نتیجه پرداخت - گل‌دان</title>
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #f0fdf4 0%, #f8fafc 40%, #ffffff 100%);
+      padding: 20px;
+      direction: rtl;
+    }
+
+    .card {
+      background: white;
+      border-radius: 24px;
+      padding: 40px 28px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+      text-align: center;
+      animation: slideUp 0.5s ease;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes bounceIn {
+      0% { opacity: 0; transform: scale(0.3); }
+      50% { transform: scale(1.05); }
+      70% { transform: scale(0.9); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* Loading State */
+    .loading-spinner {
+      width: 56px;
+      height: 56px;
+      border: 4px solid rgba(76,175,80,0.15);
+      border-top-color: #4CAF50;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 24px;
+    }
+
+    .loading-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: #4CAF50;
+    }
+
+    .loading-subtext {
+      font-size: 13px;
+      color: #9e9e9e;
+      margin-top: 8px;
+    }
+
+    /* Result Icon */
+    .icon-wrapper {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      animation: bounceIn 0.6s ease;
+    }
+
+    .icon-wrapper.success { background: #e8f5e9; }
+    .icon-wrapper.failed { background: #ffebee; }
+
+    .icon-wrapper svg {
+      width: 44px;
+      height: 44px;
+    }
+
+    .icon-wrapper.success svg { color: #4CAF50; }
+    .icon-wrapper.failed svg { color: #F44336; }
+
+    /* Title */
+    .title {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .title.success { color: #2e7d32; }
+    .title.failed { color: #c62828; }
+
+    /* Message */
+    .message {
+      font-size: 14px;
+      color: #616161;
+      line-height: 2;
+      margin-bottom: 24px;
+    }
+
+    /* Info Box */
+    .info-box {
+      background: #f8fdf8;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 24px;
+      border: 1px solid rgba(76,175,80,0.1);
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .info-row:last-child { border-bottom: none; }
+
+    .info-label {
+      font-size: 13px;
+      color: #9e9e9e;
+      font-weight: 500;
+    }
+
+    .info-value {
+      font-size: 14px;
+      color: #212121;
+      font-weight: 700;
+      direction: ltr;
+    }
+
+    /* Buttons */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 15px;
+      border: none;
+      border-radius: 14px;
+      font-family: 'Vazirmatn', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 10px;
+    }
+
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #4CAF50, #66BB6A);
+      color: white;
+      box-shadow: 0 4px 16px rgba(76,175,80,0.3);
+    }
+
+    .btn-secondary {
+      background: #f5f5f5;
+      color: #616161;
+    }
+
+    .btn-retry {
+      background: linear-gradient(135deg, #FF9800, #FFB74D);
+      color: white;
+      box-shadow: 0 4px 16px rgba(255,152,0,0.3);
+    }
+
+    /* Logo */
+    .logo {
+      margin-top: 20px;
+      font-size: 13px;
+      color: #bdbdbd;
+    }
+
+    .logo span { font-size: 18px; }
+
+    /* Hidden */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+
+    <!-- حالت لودینگ -->
+    <div id="state-loading">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">در حال بررسی وضعیت پرداخت...</p>
+      <p class="loading-subtext">لطفاً صبر کنید</p>
+    </div>
+
+    <!-- حالت نتیجه -->
+    <div id="state-result" class="hidden">
+      <div id="result-icon" class="icon-wrapper"></div>
+      <h1 id="result-title" class="title"></h1>
+      <p id="result-message" class="message"></p>
+      
+      <div id="result-info" class="info-box hidden"></div>
+
+      <div id="result-buttons"></div>
+
+      <div class="logo">
+        <span>🌱</span> گل‌دان
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // SVG آیکون‌ها
+    var ICON_SUCCESS = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+    var ICON_FAILED = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+
+    var API_URL = '';  // relative URL - proxied through Vercel rewrite to backend
+
+    // خواندن پارامترهای URL
+    var params = new URLSearchParams(window.location.search);
+    var authority = params.get('Authority');
+    var status = params.get('Status');
+
+    function showResult(success, title, message, refId, cardPan) {
+      document.getElementById('state-loading').classList.add('hidden');
+      document.getElementById('state-result').classList.remove('hidden');
+
+      // آیکون
+      var iconEl = document.getElementById('result-icon');
+      iconEl.className = 'icon-wrapper ' + (success ? 'success' : 'failed');
+      iconEl.innerHTML = success ? ICON_SUCCESS : ICON_FAILED;
+
+      // عنوان
+      var titleEl = document.getElementById('result-title');
+      titleEl.className = 'title ' + (success ? 'success' : 'failed');
+      titleEl.textContent = title;
+
+      // پیام
+      document.getElementById('result-message').textContent = message;
+
+      // اطلاعات
+      var infoEl = document.getElementById('result-info');
+      if (refId || cardPan) {
+        infoEl.classList.remove('hidden');
+        var html = '';
+        if (refId) {
+          html += '<div class="info-row"><span class="info-label">شماره تراکنش</span><span class="info-value">' + refId + '</span></div>';
+        }
+        if (cardPan) {
+          html += '<div class="info-row"><span class="info-label">شماره کارت</span><span class="info-value">' + cardPan + '</span></div>';
+        }
+        infoEl.innerHTML = html;
+      }
+
+      // دکمه‌ها
+      var btnsEl = document.getElementById('result-buttons');
+      if (success) {
+        btnsEl.innerHTML = '<button class="btn btn-primary" onclick="closeAndReturn()">🌱 بازگشت به اپلیکیشن</button>';
+      } else {
+        btnsEl.innerHTML = '<button class="btn btn-retry" onclick="closeAndReturn()">بازگشت به اپلیکیشن</button>';
+      }
+    }
+
+    function closeAndReturn() {
+      // سعی کن تب/پنجره رو ببند (مرورگر درون‌برنامه‌ای Capacitor)
+      try { window.close(); } catch(e) {}
+      // اگه بسته نشد بعد 600ms redirect کن
+      setTimeout(function() {
+        window.location.href = '/';
+      }, 600);
+    }
+
+    // شروع وریفای
+    function verifyPayment() {
+      if (!authority) {
+        showResult(false, 'خطا', 'اطلاعات پرداخت یافت نشد.', null, null);
+        return;
+      }
+
+      if (status !== 'OK') {
+        // لغو شده توسط کاربر
+        fetch(API_URL + '/payment/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authority: authority, status: status })
+        }).catch(function() {});
+
+        showResult(false, 'پرداخت لغو شد', 'پرداخت توسط شما لغو شد یا با خطا مواجه شد.', null, null);
+        return;
+      }
+
+      // وریفای با بکند
+      fetch(API_URL + '/payment/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authority: authority, status: status })
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        if (data.success) {
+          var typeText = data.payment_type === 'subscription' ? 'اشتراک شما فعال شد' : 'پکیج تشخیص بیماری خریداری شد';
+          showResult(
+            true,
+            '🎉 پرداخت موفق!',
+            'پرداخت شما با موفقیت انجام شد و ' + typeText + '.\nاکنون می‌توانید به اپلیکیشن بازگردید.',
+            data.ref_id || null,
+            data.card_pan || null
+          );
+        } else {
+          showResult(
+            false,
+            'پرداخت ناموفق',
+            data.message || 'پرداخت تایید نشد. در صورت کسر مبلغ، ظرف ۷۲ ساعت به حسابتان برگشت داده می‌شود.',
+            null,
+            null
+          );
+        }
+      })
+      .catch(function(err) {
+        console.error('Verify error:', err);
+        showResult(
+          false,
+          'خطا در بررسی',
+          'خطایی در بررسی وضعیت پرداخت رخ داد. لطفاً با پشتیبانی تماس بگیرید.',
+          null,
+          null
+        );
+      });
+    }
+
+    // اجرای وریفای
+    verifyPayment();
+  </script>
+</body>
+</html>

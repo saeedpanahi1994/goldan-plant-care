@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/payment/result", "destination": "/payment/result/index.html" },
+    { "source": "/api/payment/:path*", "destination": "http://130.185.76.46:4380/api/payment/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

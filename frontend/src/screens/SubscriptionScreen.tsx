@@ -811,53 +811,77 @@ const SubscriptionScreen: React.FC = () => {
 
     setPaymentResult({ show: true, success: false, message: '', checking: true });
 
-    try {
-      const token = localStorage.getItem('authToken');
-      const response = await axios.get(`${API_URL}/payment/check/${authority}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+    // کمی صبر کن تا صفحه وریفای زرین‌پال فرصت اجرا داشته باشد
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-      if (response.data.success) {
-        const payment = response.data.payment;
-        if (payment.status === 'verified') {
-          setPaymentResult({
-            show: true,
-            success: true,
-            message: payment.payment_type === 'subscription' 
-              ? 'اشتراک شما با موفقیت فعال شد! 🎉' 
-              : 'پکیج تشخیص بیماری با موفقیت خریداری شد! 🎉',
-            refId: payment.ref_id,
-            checking: false,
-          });
-          // بازخوانی وضعیت اشتراک
-          fetchStatus();
-        } else if (payment.status === 'failed') {
-          setPaymentResult({
-            show: true,
-            success: false,
-            message: 'پرداخت ناموفق بود. در صورت کسر مبلغ، ظرف ۷۲ ساعت به حسابتان برگشت داده می‌شود.',
-            checking: false,
-          });
-        } else {
-          // هنوز pending هست - شاید کاربر زودتر بسته
-          setPaymentResult({
-            show: true,
-            success: false,
-            message: 'پرداخت انجام نشد یا لغو شد.',
-            checking: false,
-          });
+    const token = localStorage.getItem('authToken');
+    let attempts = 0;
+    const maxAttempts = 2;
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      try {
+        // GET /check/:authority خودکار وریفای هم انجام می‌دهد
+        const response = await axios.get(`${API_URL}/payment/check/${authority}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data.success) {
+          const payment = response.data.payment;
+          if (payment.status === 'verified') {
+            setPaymentResult({
+              show: true,
+              success: true,
+              message: payment.payment_type === 'subscription' 
+                ? 'اشتراک شما با موفقیت فعال شد! 🎉' 
+                : 'پکیج تشخیص بیماری با موفقیت خریداری شد! 🎉',
+              refId: payment.ref_id,
+              checking: false,
+            });
+            // بازخوانی وضعیت اشتراک
+            fetchStatus();
+            localStorage.removeItem('pending_payment_authority');
+            return;
+          } else if (payment.status === 'failed') {
+            setPaymentResult({
+              show: true,
+              success: false,
+              message: 'پرداخت ناموفق بود. در صورت کسر مبلغ، ظرف ۷۲ ساعت به حسابتان برگشت داده می‌شود.',
+              checking: false,
+            });
+            localStorage.removeItem('pending_payment_authority');
+            return;
+          } else if (payment.status === 'pending' && attempts < maxAttempts) {
+            // هنوز pending - صبر کن و دوباره تلاش کن
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            continue;
+          } else {
+            // آخرین تلاش هم pending بود
+            setPaymentResult({
+              show: true,
+              success: false,
+              message: 'پرداخت انجام نشد یا لغو شد.',
+              checking: false,
+            });
+            localStorage.removeItem('pending_payment_authority');
+            return;
+          }
         }
+      } catch (error) {
+        if (attempts >= maxAttempts) {
+          setPaymentResult({
+            show: true,
+            success: false,
+            message: 'خطا در بررسی وضعیت پرداخت.',
+            checking: false,
+          });
+          localStorage.removeItem('pending_payment_authority');
+          return;
+        }
+        // تلاش مجدد
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
-    } catch (error) {
-      setPaymentResult({
-        show: true,
-        success: false,
-        message: 'خطا در بررسی وضعیت پرداخت.',
-        checking: false,
-      });
     }
-
-    localStorage.removeItem('pending_payment_authority');
   };
 
   const isPro = subscription?.tier === 'subscriber';

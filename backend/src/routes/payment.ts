@@ -267,6 +267,7 @@ router.post('/verify', async (req: Request, res: Response) => {
 
 // ===================================
 // GET /api/payment/check/:authority - بررسی وضعیت پرداخت (برای فرانت‌اند)
+// اگر پرداخت هنوز pending باشد، خودکار وریفای را انجام می‌دهد
 // ===================================
 router.get('/check/:authority', authMiddleware, async (req: Request, res: Response) => {
   try {
@@ -274,7 +275,7 @@ router.get('/check/:authority', authMiddleware, async (req: Request, res: Respon
     const { authority } = req.params;
 
     const result = await query(`
-      SELECT id, authority, amount, payment_type, plan_type, package_type, status, ref_id, created_at, verified_at
+      SELECT id, authority, amount, amount_rial, payment_type, plan_type, package_type, status, ref_id, created_at, verified_at
       FROM pending_payments 
       WHERE authority = $1 AND user_id = $2
     `, [authority, user.id]);
@@ -286,9 +287,80 @@ router.get('/check/:authority', authMiddleware, async (req: Request, res: Respon
       });
     }
 
+    let payment = result.rows[0];
+
+    // اگر هنوز pending هست، سعی کن خودکار وریفای کنی
+    if (payment.status === 'pending') {
+      console.log('🔄 وریفای خودکار برای پرداخت pending:', authority);
+
+      try {
+        const verifyResponse = await axios.post(ZARINPAL_VERIFY_URL, {
+          merchant_id: ZARINPAL_MERCHANT_ID,
+          amount: payment.amount_rial,
+          authority: authority,
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          timeout: 15000
+        });
+
+        console.log('📥 پاسخ وریفای خودکار:', JSON.stringify(verifyResponse.data));
+
+        const verifyData = verifyResponse.data?.data;
+        const verifyCode = verifyData?.code;
+
+        if (verifyCode === 100 || verifyCode === 101) {
+          const refId = verifyData.ref_id?.toString() || '';
+          const cardPan = verifyData.card_pan || '';
+
+          // آپدیت وضعیت پرداخت
+          await query(`
+            UPDATE pending_payments 
+            SET status = 'verified', ref_id = $1, card_pan = $2, verified_at = NOW()
+            WHERE id = $3
+          `, [refId, cardPan, payment.id]);
+
+          // فعال‌سازی اشتراک یا پکیج اسکن
+          if (payment.payment_type === 'subscription') {
+            await activateSubscription(user.id, payment.plan_type, payment.amount, refId);
+          } else if (payment.payment_type === 'scan_package') {
+            await activateScanPackage(user.id, payment.package_type, payment.amount, refId);
+          }
+
+          console.log(`✅ وریفای خودکار موفق: user_id=${user.id}, ref_id=${refId}`);
+
+          // بازخوانی اطلاعات آپدیت شده
+          payment = { ...payment, status: 'verified', ref_id: refId, card_pan: cardPan };
+        } else {
+          // زرین‌پال تایید نکرد - پرداخت ناموفق
+          await query(`
+            UPDATE pending_payments SET status = 'failed' WHERE id = $1
+          `, [payment.id]);
+          payment = { ...payment, status: 'failed' };
+          console.log('❌ وریفای خودکار: زرین‌پال تایید نکرد', verifyResponse.data);
+        }
+      } catch (verifyError: any) {
+        console.error('⚠️ خطا در وریفای خودکار (ادامه با وضعیت pending):', verifyError?.response?.data || verifyError.message);
+        // در صورت خطا، وضعیت pending را نگه‌دار تا دوباره تلاش شود
+      }
+    }
+
     res.json({
       success: true,
-      payment: result.rows[0]
+      payment: {
+        id: payment.id,
+        authority: payment.authority,
+        amount: payment.amount,
+        payment_type: payment.payment_type,
+        plan_type: payment.plan_type,
+        package_type: payment.package_type,
+        status: payment.status,
+        ref_id: payment.ref_id,
+        created_at: payment.created_at,
+        verified_at: payment.verified_at
+      }
     });
   } catch (error) {
     console.error('Check payment error:', error);
