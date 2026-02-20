@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { ArrowRight, Droplets, Sun, Thermometer, Wind, ChevronDown, ChevronUp, Leaf, Plus, Check, Sparkles } from 'lucide-react';
+import { ArrowRight, Droplets, Sun, Thermometer, Wind, ChevronDown, ChevronUp, Leaf, Plus, Check, Sparkles, HeartPulse, ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import PlantChatModal from '../components/PlantChatModal';
@@ -36,6 +36,8 @@ interface PlantData {
   difficulty_level: string;
   is_toxic_to_pets: boolean;
   is_air_purifying: boolean;
+  user_plant_id?: number;
+  health_status?: string;
 }
 
 const ScreenContainer = styled.div`
@@ -463,6 +465,118 @@ const CollapsibleText = styled.p`
   text-align: justify;
 `;
 
+const ActionButtonsRow = styled.div`
+  display: flex;
+  gap: 10px;
+  margin: 20px 20px 10px 20px;
+`;
+
+const HealthButton = styled.button`
+  flex: 1;
+  background: linear-gradient(135deg, #EF5350 0%, #FF7043 100%);
+  border: none;
+  border-radius: 16px;
+  padding: 14px 12px;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 6px 20px rgba(239, 83, 80, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(239, 83, 80, 0.4);
+  }
+
+  &:active { transform: translateY(0); }
+`;
+
+const AnalysisButton = styled.button`
+  flex: 1;
+  background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
+  border: none;
+  border-radius: 16px;
+  padding: 14px 12px;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(76, 175, 80, 0.4);
+  }
+
+  &:active { transform: translateY(0); }
+`;
+
+const HealthStatusBadge = styled.div<{ $status: string }>`
+  margin: 16px 20px 0 20px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: ${props => {
+    switch (props.$status) {
+      case 'healthy': return 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)';
+      case 'needs_attention': return 'linear-gradient(135deg, #FFF8E1 0%, #FFECB3 100%)';
+      case 'sick': return 'linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%)';
+      case 'recovering': return 'linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%)';
+      default: return 'linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%)';
+    }
+  }};
+  border: 1.5px solid ${props => {
+    switch (props.$status) {
+      case 'healthy': return '#81C784';
+      case 'needs_attention': return '#FFD54F';
+      case 'sick': return '#EF9A9A';
+      case 'recovering': return '#90CAF9';
+      default: return '#81C784';
+    }
+  }};
+`;
+
+const HealthBadgeIcon = styled.div<{ $status: string }>`
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${props => {
+    switch (props.$status) {
+      case 'healthy': return '#4CAF50';
+      case 'needs_attention': return '#FFB300';
+      case 'sick': return '#EF5350';
+      case 'recovering': return '#42A5F5';
+      default: return '#4CAF50';
+    }
+  }};
+  color: white;
+  flex-shrink: 0;
+`;
+
+const HealthBadgeText = styled.span`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #424242;
+`;
+
 const AddToGardenButton = styled.button`
   background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
   border: none;
@@ -632,6 +746,8 @@ const PlantDetailScreen: React.FC = () => {
               difficulty_level: userPlant.difficulty_level || 'medium',
               is_toxic_to_pets: userPlant.is_toxic_to_pets || false,
               is_air_purifying: userPlant.is_air_purifying || false,
+              user_plant_id: userPlant.id,
+              health_status: userPlant.health_status || 'healthy',
             });
             setIsFromGarden(true);
             setAddedToGarden(true);
@@ -986,9 +1102,41 @@ const PlantDetailScreen: React.FC = () => {
         </CollapsibleSection>
       )}
 
-      <AddToGardenButton onClick={() => navigate('/analysis')}>
-        آنالیز محیط
-      </AddToGardenButton>
+      {/* Health Status Badge - فقط در حالت باغچه */}
+      {isFromGarden && plant.user_plant_id && plant.health_status && (
+        <HealthStatusBadge $status={plant.health_status}>
+          <HealthBadgeIcon $status={plant.health_status}>
+            {plant.health_status === 'healthy' && <ShieldCheck size={18} />}
+            {plant.health_status === 'needs_attention' && <ShieldAlert size={18} />}
+            {plant.health_status === 'sick' && <HeartPulse size={18} />}
+            {plant.health_status === 'recovering' && <Shield size={18} />}
+          </HealthBadgeIcon>
+          <HealthBadgeText>
+            {plant.health_status === 'healthy' && '🌿 گیاه سالم است'}
+            {plant.health_status === 'needs_attention' && '⚠️ نیاز به توجه دارد'}
+            {plant.health_status === 'sick' && '🏥 بیماری شناسایی شده'}
+            {plant.health_status === 'recovering' && '💊 در حال بهبود'}
+          </HealthBadgeText>
+        </HealthStatusBadge>
+      )}
+
+      {/* Action Buttons Row - Health + Analysis for garden plants */}
+      {isFromGarden && plant.user_plant_id ? (
+        <ActionButtonsRow>
+          <HealthButton onClick={() => navigate(`/plant/${plant.user_plant_id}/health`)}>
+            <HeartPulse size={18} />
+            سلامت گیاه
+          </HealthButton>
+          <AnalysisButton onClick={() => navigate('/analysis')}>
+            <Leaf size={18} />
+            آنالیز محیط
+          </AnalysisButton>
+        </ActionButtonsRow>
+      ) : (
+        <AddToGardenButton onClick={() => navigate('/analysis')}>
+          آنالیز محیط
+        </AddToGardenButton>
+      )}
 
       <AddToMyGardenButton 
         onClick={handleAddToGarden}

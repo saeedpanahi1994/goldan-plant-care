@@ -53,7 +53,8 @@ export interface ApiResponse<T> {
 // تابع شناسایی گیاه از تصویر Base64
 export const identifyPlantFromBase64 = async (
   base64Image: string,
-  mimeType: string = 'image/jpeg'
+  mimeType: string = 'image/jpeg',
+  mode: 'normal' | 'pro' = 'normal'
 ): Promise<ApiResponse<PlantIdentificationResult>> => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/diagnosis/identify-base64`, {
@@ -64,6 +65,7 @@ export const identifyPlantFromBase64 = async (
       body: JSON.stringify({
         image: base64Image,
         mimeType: mimeType,
+        mode: mode,
       }),
     });
 
@@ -80,11 +82,13 @@ export const identifyPlantFromBase64 = async (
 
 // تابع شناسایی گیاه از فایل
 export const identifyPlantFromFile = async (
-  file: File
+  file: File,
+  mode: 'normal' | 'pro' = 'normal'
 ): Promise<ApiResponse<PlantIdentificationResult>> => {
   try {
     const formData = new FormData();
     formData.append('image', file);
+    formData.append('mode', mode);
 
     const response = await fetch(`${API_BASE_URL}/api/diagnosis/identify`, {
       method: 'POST',
@@ -95,6 +99,36 @@ export const identifyPlantFromFile = async (
     return result;
   } catch (error) {
     console.error('خطا در ارسال تصویر به سرور:', error);
+    return {
+      success: false,
+      message: 'خطا در اتصال به سرور. لطفاً اتصال اینترنت خود را بررسی کنید.',
+    };
+  }
+};
+
+// تابع تشخیص تخصصی بیماری برای صفحه سلامت (پاسخ متمرکز بر بیماری و درمان)
+export const diagnoseHealthFromBase64 = async (
+  base64Image: string,
+  mimeType: string = 'image/jpeg'
+): Promise<ApiResponse<any>> => {
+  try {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}/api/diagnosis/health-diagnosis-base64`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        image: base64Image,
+        mimeType: mimeType,
+      }),
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('خطا در تشخیص بیماری:', error);
     return {
       success: false,
       message: 'خطا در اتصال به سرور. لطفاً اتصال اینترنت خود را بررسی کنید.',

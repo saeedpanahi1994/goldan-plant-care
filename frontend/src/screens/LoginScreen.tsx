@@ -26,6 +26,8 @@ const shimmer = keyframes`
 
 // Styled Components
 const ScreenContainer = styled.div`
+  /* use dynamic viewport units to adjust when keyboard is open */
+  min-height: 100dvh;
   min-height: 100vh;
   background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 30%, #a5d6a7 70%, #81c784 100%);
   display: flex;

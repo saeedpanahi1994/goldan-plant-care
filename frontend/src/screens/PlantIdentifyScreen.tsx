@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import styled, { keyframes } from 'styled-components';
-import { ArrowRight, Camera, Upload, Loader2, CheckCircle, AlertCircle, Droplets, Sun, Thermometer, Wind, Leaf, X, Image, Plus, Heart, ShieldAlert, Check, Circle } from 'lucide-react';
+import styled, { keyframes, css } from 'styled-components';
+import { ArrowRight, Camera, Upload, Loader2, CheckCircle, AlertCircle, Droplets, Sun, Thermometer, Wind, Leaf, X, Image, Plus, Heart, ShieldAlert, Check, Circle, Zap, Star } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { identifyPlantFromFile, identifyPlantFromBase64, identifyDiseaseFromFile, identifyDiseaseFromBase64, PlantIdentificationResult, addIdentifiedPlantToGarden, getDefaultGarden } from '../services/plantApiService';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -103,6 +103,113 @@ const UploadDescription = styled.p`
   margin: 0 0 24px 0;
   text-align: center;
   line-height: 1.6;
+`;
+
+// Mode Selector
+const ModeSelector = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  background: #f5f5f5;
+  border-radius: 16px;
+  padding: 4px;
+`;
+
+const ModeButton = styled.button<{ $active: boolean; $isPro?: boolean }>`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 14px;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+
+  ${props => props.$active ? `
+    background: ${props.$isPro 
+      ? 'linear-gradient(135deg, #FF6F00 0%, #FFA000 100%)'
+      : 'linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%)'};
+    color: white;
+    box-shadow: ${props.$isPro
+      ? '0 4px 16px rgba(255, 111, 0, 0.3)'
+      : '0 4px 16px rgba(76, 175, 80, 0.3)'};
+  ` : `
+    background: transparent;
+    color: #757575;
+  `}
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const ModeDescription = styled.p<{ $isPro?: boolean }>`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 12px;
+  color: ${props => props.$isPro ? '#FF6F00' : '#4CAF50'};
+  text-align: center;
+  margin: -12px 0 20px 0;
+  line-height: 1.6;
+`;
+
+// Low Confidence / Suggest Pro Banner
+const SuggestProBanner = styled.div`
+  background: linear-gradient(135deg, #FFF8E1 0%, #FFE082 100%);
+  border: 2px solid #FFB300;
+  border-radius: 20px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+const SuggestProText = styled.p`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  color: #E65100;
+  line-height: 1.7;
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+`;
+
+const SuggestProButton = styled.button`
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #FF6F00 0%, #FFA000 100%);
+  border: none;
+  border-radius: 12px;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(255, 111, 0, 0.3);
+  align-self: flex-start;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  svg { width: 16px; height: 16px; }
 `;
 
 const UploadArea = styled.label<{ $hasImage: boolean }>`
@@ -780,6 +887,11 @@ const PlantIdentifyScreen: React.FC = () => {
   const [addedToGarden, setAddedToGarden] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
+  // حالت شناسایی: معمولی یا Pro
+  const [identifyMode, setIdentifyMode] = useState<'normal' | 'pro'>('normal');
+  const [suggestPro, setSuggestPro] = useState(false);
+  const [lowConfidence, setLowConfidence] = useState(false);
+
   // ساخت URL کامل برای تصاویر
   const getFullImageUrl = (url: string) => {
     if (url.startsWith('http')) return url;
@@ -930,6 +1042,8 @@ const PlantIdentifyScreen: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
+    setSuggestPro(false);
+    setLowConfidence(false);
     setProgressStep(1); // شروع مرحله 1: ارسال تصویر
 
     // تایمر برای شبیه‌سازی مراحل پیشرفت
@@ -947,12 +1061,12 @@ const PlantIdentifyScreen: React.FC = () => {
       if (base64Image && !selectedFile) {
         response = isDiseaseMode
           ? await identifyDiseaseFromBase64(base64Image, 'image/jpeg')
-          : await identifyPlantFromBase64(base64Image, 'image/jpeg');
+          : await identifyPlantFromBase64(base64Image, 'image/jpeg', identifyMode);
       } else if (selectedFile) {
         // اگر فایل از input انتخاب شده
         response = isDiseaseMode
           ? await identifyDiseaseFromFile(selectedFile)
-          : await identifyPlantFromFile(selectedFile);
+          : await identifyPlantFromFile(selectedFile, identifyMode);
       } else {
         setError('لطفاً ابتدا یک عکس انتخاب کنید');
         setIsLoading(false);
@@ -967,8 +1081,13 @@ const PlantIdentifyScreen: React.FC = () => {
       setTimeout(() => {
         if (response.success && response.data) {
           setResult(response.data);
+          // بررسی پیشنهاد Pro و اعتماد پایین
+          if (response.suggestPro) setSuggestPro(true);
+          if (response.lowConfidence) setLowConfidence(true);
         } else {
           setError(response.message || (isDiseaseMode ? 'خطا در شناسایی بیماری گیاه' : 'خطا در شناسایی گیاه'));
+          // حتی در حالت خطا هم ممکنه پیشنهاد Pro بدهد
+          if (response.suggestPro) setSuggestPro(true);
         }
         setIsLoading(false);
       }, 1000);
@@ -981,7 +1100,79 @@ const PlantIdentifyScreen: React.FC = () => {
   };
 
   const handleNewScan = () => {
+    setSuggestPro(false);
+    setLowConfidence(false);
     handleRemoveImage();
+  };
+
+  // تلاش مجدد با مدل Pro
+  const handleRetryWithPro = () => {
+    setIdentifyMode('pro');
+    setResult(null);
+    setError(null);
+    setSuggestPro(false);
+    setLowConfidence(false);
+    // کمی صبر کن تا state بروز شود
+    setTimeout(() => {
+      handleIdentifyWithMode('pro');
+    }, 100);
+  };
+
+  // تابع شناسایی با حالت مشخص
+  const handleIdentifyWithMode = async (mode: 'normal' | 'pro') => {
+    if (!selectedImage && !base64Image) return;
+
+    setIsLoading(true);
+    setError(null);
+    setSuggestPro(false);
+    setLowConfidence(false);
+    setProgressStep(1);
+
+    const progressTimer = setInterval(() => {
+      setProgressStep(prev => {
+        if (prev < 3) return prev + 1;
+        return prev;
+      });
+    }, 2500);
+
+    try {
+      let response: any;
+      
+      if (base64Image && !selectedFile) {
+        response = isDiseaseMode
+          ? await identifyDiseaseFromBase64(base64Image, 'image/jpeg')
+          : await identifyPlantFromBase64(base64Image, 'image/jpeg', mode);
+      } else if (selectedFile) {
+        response = isDiseaseMode
+          ? await identifyDiseaseFromFile(selectedFile)
+          : await identifyPlantFromFile(selectedFile, mode);
+      } else {
+        setError('لطفاً ابتدا یک عکس انتخاب کنید');
+        setIsLoading(false);
+        clearInterval(progressTimer);
+        return;
+      }
+      
+      clearInterval(progressTimer);
+      setProgressStep(4);
+
+      setTimeout(() => {
+        if (response.success && response.data) {
+          setResult(response.data);
+          if (response.suggestPro) setSuggestPro(true);
+          if (response.lowConfidence) setLowConfidence(true);
+        } else {
+          setError(response.message || (isDiseaseMode ? 'خطا در شناسایی بیماری گیاه' : 'خطا در شناسایی گیاه'));
+          if (response.suggestPro) setSuggestPro(true);
+        }
+        setIsLoading(false);
+      }, 1000);
+
+    } catch (err) {
+      clearInterval(progressTimer);
+      setError('خطا در اتصال به سرور. لطفاً دوباره تلاش کنید.');
+      setIsLoading(false);
+    }
   };
 
   const toPersianDigits = (num: number): string => {
@@ -1040,6 +1231,18 @@ const PlantIdentifyScreen: React.FC = () => {
             </ErrorIcon>
             <ErrorText>خطا در شناسایی</ErrorText>
             <ErrorHint>{error}</ErrorHint>
+            {suggestPro && identifyMode === 'normal' && (
+              <SuggestProBanner>
+                <SuggestProText>
+                  <Star size={18} />
+                  با استفاده از مدل Pro می‌توانید شناسایی دقیق‌تری داشته باشید
+                </SuggestProText>
+                <SuggestProButton onClick={handleRetryWithPro}>
+                  <Star size={16} />
+                  تلاش با مدل Pro
+                </SuggestProButton>
+              </SuggestProBanner>
+            )}
             <ActionButton $primary style={{ marginTop: 20 }} onClick={handleNewScan}>
               تلاش مجدد
             </ActionButton>
@@ -1091,6 +1294,20 @@ const PlantIdentifyScreen: React.FC = () => {
                 <PlantDescription>{result.description}</PlantDescription>
               </PlantInfo>
             </PlantCard>
+
+            {/* پیشنهاد Pro در صورت اطمینان پایین */}
+            {suggestPro && identifyMode === 'normal' && (
+              <SuggestProBanner>
+                <SuggestProText>
+                  <Star size={18} />
+                  دقت شناسایی پایین است. برای نتیجه دقیق‌تر از مدل Pro استفاده کنید
+                </SuggestProText>
+                <SuggestProButton onClick={handleRetryWithPro}>
+                  <Star size={16} />
+                  تلاش با مدل Pro
+                </SuggestProButton>
+              </SuggestProBanner>
+            )}
 
             {/* Plant Needs */}
             <NeedsCard>
@@ -1240,6 +1457,34 @@ const PlantIdentifyScreen: React.FC = () => {
         {/* Upload Section */}
         {!isLoading && !result && !error && (
           <UploadSection>
+            {/* Mode Selector - فقط در حالت شناسایی گیاه (نه بیماری) */}
+            {!isDiseaseMode && (
+              <>
+                <ModeSelector>
+                  <ModeButton 
+                    $active={identifyMode === 'normal'} 
+                    onClick={() => setIdentifyMode('normal')}
+                  >
+                    <Zap size={18} />
+                    معمولی
+                  </ModeButton>
+                  <ModeButton 
+                    $active={identifyMode === 'pro'} 
+                    $isPro 
+                    onClick={() => setIdentifyMode('pro')}
+                  >
+                    <Star size={18} />
+                    Pro
+                  </ModeButton>
+                </ModeSelector>
+                <ModeDescription $isPro={identifyMode === 'pro'}>
+                  {identifyMode === 'normal' 
+                    ? 'شناسایی معمولی با هوش مصنوعی معمولی'
+                    : '✨ شناسایی دقیق‌تر با هوش مصنوعی پیشرفته'}
+                </ModeDescription>
+              </>
+            )}
+
             <UploadTitle>{isDiseaseMode ? 'عکس بخش بیمار گیاه را آپلود کنید' : 'عکس گیاه خود را آپلود کنید'}</UploadTitle>
             <UploadDescription>
               {isDiseaseMode

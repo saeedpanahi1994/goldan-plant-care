@@ -2,6 +2,11 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from './auth';
 import * as plantService from '../services/plantService';
 import { getUserTier, getUserPlantCount, PLAN_LIMITS } from './subscription';
+import { query } from '../config/database';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -471,6 +476,208 @@ router.put('/:id/reminder', authMiddleware, async (req: Request, res: Response) 
       success: false,
       message: 'خطا در تنظیم یادآور'
     });
+  }
+});
+
+// ===================================
+// PLANT HEALTH RECORDS - پرونده سلامت گیاه
+// ===================================
+
+// Multer setup for health images
+const healthUploadsDir = path.join(__dirname, '../../uploads/health');
+if (!fs.existsSync(healthUploadsDir)) {
+  fs.mkdirSync(healthUploadsDir, { recursive: true });
+}
+
+const healthStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, healthUploadsDir),
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+const healthUpload = multer({ storage: healthStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+
+// ===================================
+// GET /api/plants/:id/health - دریافت پرونده سلامت گیاه
+// ===================================
+router.get('/:id/health', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const userPlantId = parseInt(getParam(req.params.id));
+
+    // بررسی مالکیت گیاه
+    const plant = await plantService.getUserPlantById(userPlantId, user.id);
+    if (!plant) {
+      return res.status(404).json({ success: false, message: 'گیاه یافت نشد' });
+    }
+
+    const result = await query(`
+      SELECT * FROM plant_health_records
+      WHERE user_plant_id = $1 AND user_id = $2
+      ORDER BY diagnosed_at DESC
+    `, [userPlantId, user.id]);
+
+    res.json({
+      success: true,
+      healthStatus: (plant as any).health_status || 'healthy',
+      records: result.rows
+    });
+  } catch (error) {
+    console.error('Get health records error:', error);
+    res.status(500).json({ success: false, message: 'خطا در دریافت پرونده سلامت' });
+  }
+});
+
+// ===================================
+// POST /api/plants/:id/health/diagnose - ثبت تشخیص بیماری (Base64)
+// ===================================
+router.post('/:id/health/diagnose', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const userPlantId = parseInt(getParam(req.params.id));
+
+    // بررسی مالکیت گیاه
+    const plant = await plantService.getUserPlantById(userPlantId, user.id);
+    if (!plant) {
+      return res.status(404).json({ success: false, message: 'گیاه یافت نشد' });
+    }
+
+    const { diagnosisResult, imageBase64 } = req.body;
+
+    if (!diagnosisResult) {
+      return res.status(400).json({ success: false, message: 'نتیجه تشخیص الزامی است' });
+    }
+
+    // ذخیره تصویر بیماری
+    let imageUrl = null;
+    if (imageBase64) {
+      const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.jpg`;
+      const imagePath = path.join(healthUploadsDir, filename);
+      const imageBuffer = Buffer.from(imageBase64, 'base64');
+      fs.writeFileSync(imagePath, imageBuffer);
+      imageUrl = `/uploads/health/${filename}`;
+    }
+
+    // تعیین health_status بر اساس نتیجه تشخیص
+    let healthStatus = 'healthy';
+    const disease = diagnosisResult.disease || '';
+    const healthStatusText = diagnosisResult.healthStatus || '';
+
+    if (disease && disease !== 'ندارد' && disease !== 'بدون بیماری') {
+      healthStatus = 'sick';
+    } else if (healthStatusText.includes('نیاز به توجه') || healthStatusText.includes('توجه')) {
+      healthStatus = 'needs_attention';
+    } else if (healthStatusText.includes('بیمار')) {
+      healthStatus = 'sick';
+    }
+
+    // ذخیره اطلاعات تخصصی بیماری در notes به صورت JSON
+    const extraData = JSON.stringify({
+      disease_type: diagnosisResult.disease_type || null,
+      severity: diagnosisResult.severity || null,
+      is_contagious: diagnosisResult.is_contagious || false,
+      symptoms: diagnosisResult.symptoms || [],
+      cause: diagnosisResult.cause || null,
+      treatment_steps: diagnosisResult.treatment_steps || [],
+      prevention: diagnosisResult.prevention || [],
+      recovery_time: diagnosisResult.recovery_time || null
+    });
+
+    // ذخیره رکورد سلامت
+    const record = await query(`
+      INSERT INTO plant_health_records (
+        user_plant_id, user_id, disease_name, disease_name_en,
+        health_status, description, treatment, care_tips,
+        confidence, image_url, notes, diagnosed_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+      RETURNING *
+    `, [
+      userPlantId,
+      user.id,
+      diagnosisResult.disease || 'ندارد',
+      diagnosisResult.disease_en || null,
+      healthStatus,
+      diagnosisResult.description || healthStatusText,
+      diagnosisResult.treatment || null,
+      diagnosisResult.careTips || [],
+      diagnosisResult.confidence || 0,
+      imageUrl,
+      extraData
+    ]);
+
+    // بروزرسانی وضعیت سلامت در user_plants
+    await query(`
+      UPDATE user_plants SET health_status = $1 WHERE id = $2 AND user_id = $3
+    `, [healthStatus, userPlantId, user.id]);
+
+    console.log(`🏥 [Health] رکورد سلامت ثبت شد | گیاه: ${userPlantId} | وضعیت: ${healthStatus} | بیماری: ${diagnosisResult.disease || 'ندارد'}`);
+
+    res.json({
+      success: true,
+      message: 'پرونده سلامت با موفقیت ثبت شد',
+      record: record.rows[0],
+      healthStatus
+    });
+  } catch (error) {
+    console.error('Diagnose health error:', error);
+    res.status(500).json({ success: false, message: 'خطا در ثبت تشخیص' });
+  }
+});
+
+// ===================================
+// PUT /api/plants/:id/health/:recordId/resolve - رفع بیماری
+// ===================================
+router.put('/:id/health/:recordId/resolve', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const userPlantId = parseInt(getParam(req.params.id));
+    const recordId = parseInt(req.params.recordId);
+    const { notes } = req.body;
+
+    // بررسی مالکیت
+    const plant = await plantService.getUserPlantById(userPlantId, user.id);
+    if (!plant) {
+      return res.status(404).json({ success: false, message: 'گیاه یافت نشد' });
+    }
+
+    // بروزرسانی رکورد
+    const result = await query(`
+      UPDATE plant_health_records 
+      SET is_resolved = true, resolved_at = NOW(), notes = COALESCE($1, notes)
+      WHERE id = $2 AND user_plant_id = $3 AND user_id = $4
+      RETURNING *
+    `, [notes, recordId, userPlantId, user.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'رکورد سلامت یافت نشد' });
+    }
+
+    // بررسی آیا هنوز بیماری فعال وجود دارد
+    const activeIssues = await query(`
+      SELECT COUNT(*) as count FROM plant_health_records
+      WHERE user_plant_id = $1 AND user_id = $2 
+        AND is_resolved = false AND health_status IN ('sick', 'needs_attention')
+    `, [userPlantId, user.id]);
+
+    const newHealthStatus = parseInt(activeIssues.rows[0].count) > 0 ? 'recovering' : 'healthy';
+
+    // بروزرسانی وضعیت گیاه
+    await query(`
+      UPDATE user_plants SET health_status = $1 WHERE id = $2 AND user_id = $3
+    `, [newHealthStatus, userPlantId, user.id]);
+
+    console.log(`✅ [Health] بیماری رفع شد | گیاه: ${userPlantId} | وضعیت جدید: ${newHealthStatus}`);
+
+    res.json({
+      success: true,
+      message: 'بیماری با موفقیت رفع شد',
+      record: result.rows[0],
+      healthStatus: newHealthStatus
+    });
+  } catch (error) {
+    console.error('Resolve health error:', error);
+    res.status(500).json({ success: false, message: 'خطا در رفع بیماری' });
   }
 });
 

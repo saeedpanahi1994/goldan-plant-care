@@ -406,6 +406,34 @@ export const initializeDatabase = async (): Promise<void> => {
     await query(`CREATE INDEX IF NOT EXISTS idx_pending_payments_status ON pending_payments(status);`);
 
     // ===================================
+    // 19. Plant Health Records Table - پرونده سلامت گیاه
+    // ===================================
+    await query(`
+      CREATE TABLE IF NOT EXISTS plant_health_records (
+        id SERIAL PRIMARY KEY,
+        user_plant_id INTEGER REFERENCES user_plants(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        disease_name VARCHAR(255),
+        disease_name_en VARCHAR(255),
+        health_status VARCHAR(50) NOT NULL DEFAULT 'healthy' CHECK (health_status IN ('healthy', 'needs_attention', 'sick', 'recovering')),
+        description TEXT,
+        treatment TEXT,
+        care_tips TEXT[],
+        confidence DECIMAL(3,2) DEFAULT 0,
+        image_url VARCHAR(500),
+        is_resolved BOOLEAN DEFAULT false,
+        resolved_at TIMESTAMP WITH TIME ZONE,
+        notes TEXT,
+        diagnosed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ جدول plant_health_records ایجاد شد');
+    await query(`CREATE INDEX IF NOT EXISTS idx_health_records_user_plant ON plant_health_records(user_plant_id);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_health_records_user ON plant_health_records(user_id);`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_health_records_status ON plant_health_records(health_status);`);
+
+    // ===================================
     // Insert Default Plant Categories
     // ===================================
     await query(`

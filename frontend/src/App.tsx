@@ -16,6 +16,7 @@ import AnalysisScreen from './screens/AnalysisScreen';
 import PlantRecommendationScreen from './screens/PlantRecommendationScreen';
 import PlantIdentifyScreen from './screens/PlantIdentifyScreen';
 import PlantBankScreen from './screens/PlantBankScreen';
+import PlantHealthScreen from './screens/PlantHealthScreen';
 import SmartChatScreen from './screens/SmartChatScreen';
 import SubscriptionScreen from './screens/SubscriptionScreen';
 import PaymentResultScreen from './screens/PaymentResultScreen';
@@ -192,6 +193,7 @@ const AppContent: React.FC = () => {
               <Route path="/plant-bank" element={<ProtectedRoute><PlantBankScreen /></ProtectedRoute>} />
               <Route path="/plant/:id" element={<ProtectedRoute><PlantDetailScreen /></ProtectedRoute>} />
               <Route path="/plant-detail/:id" element={<ProtectedRoute><PlantDetailScreen /></ProtectedRoute>} />
+              <Route path="/plant/:id/health" element={<ProtectedRoute><PlantHealthScreen /></ProtectedRoute>} />
               <Route path="/weather" element={<ProtectedRoute><WeatherConditionScreen /></ProtectedRoute>} />
               <Route path="/analysis" element={<ProtectedRoute><AnalysisScreen /></ProtectedRoute>} />
               <Route path="/recommendation" element={<ProtectedRoute><PlantRecommendationScreen /></ProtectedRoute>} />

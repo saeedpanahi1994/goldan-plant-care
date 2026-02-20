@@ -34,17 +34,16 @@ const success = keyframes`
 
 // Styled Components
 const ScreenContainer = styled.div`
-  min-height: 100vh;
+  /* using dynamic viewport height helps avoid blank space when the keyboard appears on mobile */
+  min-height: 100dvh;
+  min-height: 100vh; /* fallback for browsers that don't support dvh */
+  height: 100%;
   width: 100%;
   background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 30%, #a5d6a7 70%, #81c784 100%);
   display: flex;
   flex-direction: column;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 100;
+  position: relative; /* use relative positioning like login screen to avoid 100vh issues on mobile keyboards */
+  overflow: hidden;
 `;
 
 const Header = styled.header`
@@ -73,6 +72,7 @@ const ContentArea = styled.div`
   flex: 1;
   padding: 20px 24px;
   animation: ${fadeIn} 0.5s ease;
+  overflow-y: auto; /* allow scroll when keyboard is open */
 `;
 
 const IconContainer = styled.div`

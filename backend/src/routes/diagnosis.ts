@@ -488,6 +488,53 @@ const createDiseasePrompt = () => `
 - همه توضیحات و tips باید به فارسی و خلاصه باشند
 `;
 
+// پرامپت تخصصی تشخیص بیماری برای صفحه سلامت گیاه
+const createHealthDiagnosisPrompt = () => `
+شما یک دکتر متخصص بیماری‌های گیاهی هستید. لطفاً این تصویر را با دقت کامل بررسی کنید و فقط اطلاعات مربوط به بیماری و درمان گیاه را ارائه دهید.
+
+مهم: پاسخ باید فقط و فقط یک JSON معتبر باشد بدون هیچ متن اضافی. اطلاعات کلی گیاه (مثل خانواده، نیاز نوری، خاک و...) نیاز نیست.
+
+{
+  "disease": "نام بیماری به فارسی (اگر سالم است بنویسید 'ندارد')",
+  "disease_en": "Disease name in English",
+  "disease_type": "نوع بیماری - یکی از: قارچی، باکتریایی، ویروسی، آفت حشرات، کمبود مواد غذایی، مشکل محیطی، ندارد",
+  "healthStatus": "وضعیت سلامت - یکی از: سالم، نیاز به توجه، بیمار",
+  "severity": "شدت بیماری - یکی از: خفیف، متوسط، شدید، ندارد",
+  "is_contagious": false,
+  "symptoms": ["علامت قابل مشاهده ۱", "علامت قابل مشاهده ۲", "علامت قابل مشاهده ۳"],
+  "cause": "دلیل اصلی بروز این بیماری یا مشکل به فارسی (2-3 جمله کامل)",
+  "description": "توضیح تخصصی درباره این بیماری، نحوه تأثیر آن بر بافت گیاه و روند پیشرفت بیماری (3-4 جمله)",
+  "treatment": "درمان کلی به صورت خلاصه (1-2 جمله)",
+  "treatment_steps": [
+    "مرحله ۱: اقدام فوری اولیه",
+    "مرحله ۲: درمان اصلی با جزئیات",
+    "مرحله ۳: مراقبت‌های پس از درمان",
+    "مرحله ۴: پیگیری و بررسی نتیجه"
+  ],
+  "prevention": [
+    "راهکار پیشگیری ۱",
+    "راهکار پیشگیری ۲",
+    "راهکار پیشگیری ۳"
+  ],
+  "recovery_time": "زمان تقریبی بهبودی (مثلاً: ۱ تا ۲ هفته)",
+  "careTips": ["نکته مراقبتی درمانی ۱", "نکته مراقبتی درمانی ۲", "نکته مراقبتی درمانی ۳"],
+  "confidence": 0.85
+}
+
+نکات بسیار مهم:
+- فقط روی بیماری، علائم، علت، درمان و پیشگیری تمرکز کنید
+- اطلاعات عمومی گیاه (نام، خانواده، نیاز نوری، آبیاری و...) لازم نیست
+- treatment_steps باید مراحل دقیق و عملی درمان باشد که کاربر بتواند مرحله به مرحله انجام دهد
+- symptoms باید علائم قابل مشاهده‌ای باشد که در تصویر دیده می‌شود
+- cause باید دلیل اصلی بیماری را توضیح دهد
+- prevention نکات پیشگیری برای جلوگیری از تکرار بیماری
+- اگر گیاه سالم است: disease='ندارد'، severity='ندارد'، symptoms=[]، treatment_steps=[]، prevention باید نکات حفظ سلامت باشد
+- is_contagious مشخص کند آیا بیماری به گیاهان مجاور سرایت می‌کند
+- recovery_time زمان تقریبی واقع‌بینانه بهبودی
+- confidence عددی بین 0 تا 1 است
+- همه متون باید به فارسی باشند
+`;
+
 const createPromptFromScientificName = (scientificName: string, commonName?: string) => `
 شما یک متخصص گیاه‌شناسی هستید. لطفاً بر اساس اطلاعات زیر، مشخصات گیاه را به صورت JSON برگردانید.
 
@@ -1347,6 +1394,276 @@ const optionalAuthMiddleware = async (req: Request, res: Response, next: Functio
 };
 
 // ===================================
+// حالت عادی: فقط PlantNet (بدون Gemini fallback)
+// ===================================
+const identifyPlantNormalMode = async (
+  imagePath: string,
+  mimeType: string = 'image/jpeg'
+): Promise<{ result: PlantIdentificationResult | null; lowConfidence?: boolean; suggestPro?: string }> => {
+  const startTotal = Date.now();
+  console.log('🌿 [Normal Mode] شروع شناسایی فقط با PlantNet...');
+
+  try {
+    if (!isPlantNetAvailable()) {
+      console.warn('⚠️ [Normal Mode] PlantNet موقتاً در دسترس نیست');
+      return {
+        result: null,
+        suggestPro: 'سرویس شناسایی موقتاً در دسترس نیست. می‌توانید از مدل Pro استفاده کنید.'
+      };
+    }
+
+    const plantnet = await identifyScientificNameWithPlantNet(imagePath, mimeType);
+
+    if (!plantnet?.scientificName) {
+      console.warn('⚠️ [Normal Mode] PlantNet نتوانست گیاه را شناسایی کند');
+      return {
+        result: null,
+        suggestPro: 'متأسفانه این گیاه قابل شناسایی نیست. می‌توانید از مدل Pro برای شناسایی دقیق‌تر استفاده کنید.'
+      };
+    }
+
+    const confidence = plantnet.confidence ?? 0;
+    console.log(`📊 [Normal Mode] PlantNet confidence: ${(confidence * 100).toFixed(1)}%`);
+
+    // بررسی دیتابیس
+    const cachedPlant = await findPlantInDatabase(plantnet.scientificName, plantnet.commonName);
+    if (cachedPlant) {
+      cachedPlant.userImageUrl = `/uploads/${path.basename(imagePath)}`;
+      cachedPlant.confidence = confidence;
+      const totalElapsed = Date.now() - startTotal;
+      console.log(`⚡ [Normal Mode] Cache HIT در ${totalElapsed}ms`);
+
+      // اگر درصد اطمینان زیر 30% باشه، پیشنهاد Pro بده
+      if (confidence < 0.3) {
+        return {
+          result: cachedPlant,
+          lowConfidence: true,
+          suggestPro: 'درصد اطمینان شناسایی گیاه پایین است. برای افزایش کیفیت، می‌توانید از مدل Pro استفاده کنید.'
+        };
+      }
+
+      return { result: cachedPlant };
+    }
+
+    // گیاه جدید - اطلاعات کامل از AI (اما فقط text، بدون تصویر)
+    console.log('🤖 [Normal Mode] دریافت اطلاعات کامل از AI...');
+    const prompt = createPromptFromScientificName(plantnet.scientificName, plantnet.commonName);
+    const text = await generatePlantInfoContent(prompt);
+
+    if (!text) {
+      return {
+        result: null,
+        suggestPro: 'خطا در دریافت اطلاعات گیاه. می‌توانید از مدل Pro استفاده کنید.'
+      };
+    }
+
+    let jsonStr = text;
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) jsonStr = jsonMatch[1].trim();
+    const plantData = JSON.parse(jsonStr);
+
+    // دانلود تصویر از Wikipedia
+    const wikipediaImages = await downloadPlantImageFromWikipedia(
+      plantData.name_en || plantData.scientificName || plantnet.scientificName,
+      plantData.scientificName || plantnet.scientificName
+    );
+
+    const additionalImages: string[] = [];
+    if (wikipediaImages.additionalImage) additionalImages.push(wikipediaImages.additionalImage);
+
+    const userImageUrl = `/uploads/${path.basename(imagePath)}`;
+
+    const identificationResult: PlantIdentificationResult = {
+      name: plantData.name,
+      name_fa: plantData.name,
+      scientificName: plantData.scientificName || plantnet.scientificName,
+      family: plantData.family,
+      description: plantData.description,
+      needs: plantData.needs,
+      healthStatus: plantData.healthStatus,
+      disease: plantData.disease,
+      treatment: plantData.treatment,
+      careTips: plantData.careTips,
+      confidence: confidence,
+      watering_interval_days: plantData.watering_interval_days || 7,
+      watering_tips: plantData.watering_tips || plantData.needs?.water || '',
+      light_requirement: plantData.light_requirement || 'indirect',
+      light_description: plantData.light_description || plantData.needs?.light || '',
+      min_temperature: plantData.min_temperature || 15,
+      max_temperature: plantData.max_temperature || 28,
+      ideal_temperature: plantData.ideal_temperature || 22,
+      temperature_tips: plantData.temperature_tips || plantData.needs?.temperature || '',
+      humidity_level: plantData.humidity_level || 'medium',
+      humidity_tips: plantData.humidity_tips || plantData.needs?.humidity || '',
+      fertilizer_interval_days: plantData.fertilizer_interval_days || 30,
+      fertilizer_type: plantData.fertilizer_type || 'کود مایع همه‌کاره',
+      fertilizer_tips: plantData.fertilizer_tips || '',
+      soil_type: plantData.soil_type || 'خاک غنی و زهکش‌دار',
+      soil_tips: plantData.soil_tips || '',
+      difficulty_level: plantData.difficulty_level || 'medium',
+      is_toxic_to_pets: plantData.is_toxic_to_pets || false,
+      is_air_purifying: plantData.is_air_purifying || false,
+      userImageUrl,
+      wikipediaImageUrl: wikipediaImages.mainImage || null,
+      additionalImages
+    };
+
+    // فقط اگر confidence >= 0.5 باشد در بانک ذخیره کن
+    if (confidence >= 0.5) {
+      console.log('💾 [Normal Mode] ذخیره گیاه در بانک (confidence >= 50%)...');
+      await savePlantToDatabase(identificationResult);
+    } else {
+      console.log(`⚠️ [Normal Mode] عدم ذخیره در بانک (confidence ${(confidence * 100).toFixed(1)}% < 60%)`);
+    }
+
+    const totalElapsed = Date.now() - startTotal;
+    console.log(`✅ [Normal Mode] شناسایی کامل در ${totalElapsed}ms`);
+
+    // اگر درصد اطمینان زیر 30% باشه، پیشنهاد Pro بده
+    if (confidence < 0.3) {
+      return {
+        result: identificationResult,
+        lowConfidence: true,
+        suggestPro: 'درصد اطمینان شناسایی گیاه پایین است. برای افزایش کیفیت، می‌توانید از مدل Pro استفاده کنید.'
+      };
+    }
+
+    return { result: identificationResult };
+  } catch (error: any) {
+    console.error('❌ [Normal Mode] خطا:', error?.message || error);
+    return {
+      result: null,
+      suggestPro: 'خطا در شناسایی گیاه. می‌توانید از مدل Pro استفاده کنید.'
+    };
+  }
+};
+
+// ===================================
+// حالت Pro: PlantNet + Gemini fallback (اگر confidence < 60% یا خطا)
+// ===================================
+const identifyPlantProMode = async (
+  imagePath: string,
+  mimeType: string = 'image/jpeg'
+): Promise<PlantIdentificationResult | null> => {
+  const startTotal = Date.now();
+  console.log('🚀 [Pro Mode] شروع شناسایی حرفه‌ای...');
+
+  try {
+    // ابتدا PlantNet
+    let plantnetResult: any = null;
+    if (isPlantNetAvailable()) {
+      plantnetResult = await identifyScientificNameWithPlantNet(imagePath, mimeType);
+    }
+
+    if (plantnetResult?.scientificName) {
+      const confidence = plantnetResult.confidence ?? 0;
+      console.log(`📊 [Pro Mode] PlantNet confidence: ${(confidence * 100).toFixed(1)}%`);
+
+      // اگر confidence بالا باشد (>= 60%)، از PlantNet استفاده کن
+      if (confidence >= 0.6) {
+        // بررسی دیتابیس
+        const cachedPlant = await findPlantInDatabase(plantnetResult.scientificName, plantnetResult.commonName);
+        if (cachedPlant) {
+          cachedPlant.userImageUrl = `/uploads/${path.basename(imagePath)}`;
+          cachedPlant.confidence = confidence;
+          console.log(`⚡ [Pro Mode] Cache HIT با PlantNet confidence بالا`);
+          return cachedPlant;
+        }
+
+        // اطلاعات کامل از AI
+        const prompt = createPromptFromScientificName(plantnetResult.scientificName, plantnetResult.commonName);
+        const text = await generatePlantInfoContent(prompt);
+
+        if (text) {
+          let jsonStr = text;
+          const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (jsonMatch) jsonStr = jsonMatch[1].trim();
+          const plantData = JSON.parse(jsonStr);
+
+          const wikipediaImages = await downloadPlantImageFromWikipedia(
+            plantData.name_en || plantData.scientificName || plantnetResult.scientificName,
+            plantData.scientificName || plantnetResult.scientificName
+          );
+
+          const additionalImages: string[] = [];
+          if (wikipediaImages.additionalImage) additionalImages.push(wikipediaImages.additionalImage);
+
+          const result: PlantIdentificationResult = {
+            name: plantData.name,
+            name_fa: plantData.name,
+            scientificName: plantData.scientificName || plantnetResult.scientificName,
+            family: plantData.family,
+            description: plantData.description,
+            needs: plantData.needs,
+            healthStatus: plantData.healthStatus,
+            disease: plantData.disease,
+            treatment: plantData.treatment,
+            careTips: plantData.careTips,
+            confidence: confidence,
+            watering_interval_days: plantData.watering_interval_days || 7,
+            watering_tips: plantData.watering_tips || plantData.needs?.water || '',
+            light_requirement: plantData.light_requirement || 'indirect',
+            light_description: plantData.light_description || plantData.needs?.light || '',
+            min_temperature: plantData.min_temperature || 15,
+            max_temperature: plantData.max_temperature || 28,
+            ideal_temperature: plantData.ideal_temperature || 22,
+            temperature_tips: plantData.temperature_tips || plantData.needs?.temperature || '',
+            humidity_level: plantData.humidity_level || 'medium',
+            humidity_tips: plantData.humidity_tips || plantData.needs?.humidity || '',
+            fertilizer_interval_days: plantData.fertilizer_interval_days || 30,
+            fertilizer_type: plantData.fertilizer_type || 'کود مایع همه‌کاره',
+            fertilizer_tips: plantData.fertilizer_tips || '',
+            soil_type: plantData.soil_type || 'خاک غنی و زهکش‌دار',
+            soil_tips: plantData.soil_tips || '',
+            difficulty_level: plantData.difficulty_level || 'medium',
+            is_toxic_to_pets: plantData.is_toxic_to_pets || false,
+            is_air_purifying: plantData.is_air_purifying || false,
+            userImageUrl: `/uploads/${path.basename(imagePath)}`,
+            wikipediaImageUrl: wikipediaImages.mainImage || null,
+            additionalImages
+          };
+
+          // ذخیره در بانک (confidence بالاست)
+          console.log('💾 [Pro Mode] ذخیره گیاه در بانک...');
+          await savePlantToDatabase(result);
+
+          const totalElapsed = Date.now() - startTotal;
+          console.log(`✅ [Pro Mode] شناسایی با PlantNet موفق در ${totalElapsed}ms`);
+          return result;
+        }
+      }
+
+      // PlantNet confidence پایین (< 60%)، ادامه با Gemini
+      console.log('⚠️ [Pro Mode] PlantNet confidence پایین، ادامه با Gemini...');
+    } else {
+      console.log('⚠️ [Pro Mode] PlantNet ناموفق، ادامه با Gemini...');
+    }
+
+    // Fallback به Gemini (شناسایی با تصویر)
+    console.log('🤖 [Pro Mode] شناسایی با Gemini...');
+    const geminiResult = await identifyPlantWithGemini(imagePath, mimeType);
+
+    if (geminiResult) {
+      // فقط اگر confidence >= 0.6 در بانک ذخیره کن
+      if (geminiResult.confidence >= 0.6) {
+        console.log('💾 [Pro Mode] ذخیره گیاه Gemini در بانک (confidence >= 60%)...');
+        await savePlantToDatabase(geminiResult);
+      } else {
+        console.log(`⚠️ [Pro Mode] عدم ذخیره Gemini در بانک (confidence ${(geminiResult.confidence * 100).toFixed(1)}% < 60%)`);
+      }
+    }
+
+    const totalElapsed = Date.now() - startTotal;
+    console.log(`${geminiResult ? '✅' : '❌'} [Pro Mode] شناسایی Gemini ${geminiResult ? 'موفق' : 'ناموفق'} در ${totalElapsed}ms`);
+    return geminiResult;
+  } catch (error: any) {
+    console.error('❌ [Pro Mode] خطا:', error?.message || error);
+    // در صورت خطا هم Gemini را امتحان کن
+    return await identifyPlantWithGemini(imagePath, mimeType);
+  }
+};
+
+// ===================================
 // POST /api/diagnosis/identify - شناسایی گیاه از فایل آپلود شده
 // ===================================
 router.post('/identify', optionalAuthMiddleware, upload.single('image'), async (req: Request, res: Response) => {
@@ -1358,12 +1675,16 @@ router.post('/identify', optionalAuthMiddleware, upload.single('image'), async (
   try {
     // بررسی محدودیت مصرف
     const user = (req as any).user;
+    const mode = (req.body?.mode || 'normal').toLowerCase();
     if (user) {
-      const usageCheck = await checkUsageLimit(user.id, 'identify');
+      const action = mode === 'pro' ? 'identify_pro' : 'identify';
+      const usageCheck = await checkUsageLimit(user.id, action);
       if (!usageCheck.allowed) {
         return res.status(429).json({
           success: false,
-          message: `سهمیه ${usageCheck.period} شناسایی گیاه شما تمام شده (${usageCheck.limit} از ${usageCheck.limit})`,
+          message: mode === 'pro'
+            ? `سهمیه ${usageCheck.period} شناسایی حرفه‌ای شما تمام شده (${usageCheck.limit} از ${usageCheck.limit})`
+            : `سهمیه ${usageCheck.period} شناسایی گیاه شما تمام شده (${usageCheck.limit} از ${usageCheck.limit})`,
           usageInfo: usageCheck,
           upgradeRequired: usageCheck.tier === 'free',
         });
@@ -1380,11 +1701,21 @@ router.post('/identify', optionalAuthMiddleware, upload.single('image'), async (
     const imagePath = req.file.path;
     const mimeType = req.file.mimetype;
     const fileSize = (req.file.size / 1024).toFixed(1);
-    console.log(`📂 [API /identify] فایل: ${req.file.filename} | سایز: ${fileSize} KB | نوع: ${mimeType}`);
+    console.log(`📂 [API /identify] فایل: ${req.file.filename} | سایز: ${fileSize} KB | نوع: ${mimeType} | حالت: ${mode}`);
 
-    const result = shouldUsePlantNet()
-      ? await identifyPlantWithPlantNetAndGemini(imagePath, mimeType)
-      : await identifyPlantWithGemini(imagePath, mimeType);
+    let result: PlantIdentificationResult | null = null;
+    let suggestPro: string | undefined;
+    let lowConfidence = false;
+
+    if (mode === 'pro') {
+      result = await identifyPlantProMode(imagePath, mimeType);
+    } else {
+      // حالت عادی
+      const normalResult = await identifyPlantNormalMode(imagePath, mimeType);
+      result = normalResult.result;
+      suggestPro = normalResult.suggestPro;
+      lowConfidence = normalResult.lowConfidence || false;
+    }
 
     const totalElapsed = Date.now() - requestStart;
 
@@ -1393,22 +1724,25 @@ router.post('/identify', optionalAuthMiddleware, upload.single('image'), async (
       console.log('════════════════════════════════════════════════════════════');
       return res.status(500).json({
         success: false,
-        message: 'خطا در شناسایی گیاه. لطفاً دوباره تلاش کنید.'
+        message: suggestPro || 'خطا در شناسایی گیاه. لطفاً دوباره تلاش کنید.',
+        suggestPro: !!suggestPro
       });
     }
 
-    console.log(`✅ [API /identify] موفقیت در ${totalElapsed}ms | گیاه: ${result.name} (${result.scientificName}) | منبع: ${result.confidence >= 0.95 ? 'دیتابیس (کش)' : 'AI'}`);
+    console.log(`✅ [API /identify] موفقیت در ${totalElapsed}ms | گیاه: ${result.name} (${result.scientificName}) | حالت: ${mode} | confidence: ${(result.confidence * 100).toFixed(1)}%`);
     console.log('════════════════════════════════════════════════════════════');
 
     // ثبت مصرف
     if (user) {
-      await trackUsage(user.id, 'identify');
+      await trackUsage(user.id, mode === 'pro' ? 'identify_pro' : 'identify');
     }
 
     res.json({
       success: true,
       message: 'گیاه با موفقیت شناسایی شد',
-      data: result
+      data: result,
+      lowConfidence,
+      suggestPro: suggestPro || undefined
     });
   } catch (error) {
     const totalElapsed = Date.now() - requestStart;
@@ -1435,12 +1769,16 @@ router.post('/identify-base64', optionalAuthMiddleware, async (req: Request, res
   try {
     // بررسی محدودیت مصرف
     const user = (req as any).user;
+    const mode = (req.body?.mode || 'normal').toLowerCase();
     if (user) {
-      const usageCheck = await checkUsageLimit(user.id, 'identify');
+      const action = mode === 'pro' ? 'identify_pro' : 'identify';
+      const usageCheck = await checkUsageLimit(user.id, action);
       if (!usageCheck.allowed) {
         return res.status(429).json({
           success: false,
-          message: `سهمیه ${usageCheck.period} شناسایی گیاه شما تمام شده (${usageCheck.limit} از ${usageCheck.limit})`,
+          message: mode === 'pro' 
+            ? `سهمیه ${usageCheck.period} شناسایی حرفه‌ای شما تمام شده (${usageCheck.limit} از ${usageCheck.limit})`
+            : `سهمیه ${usageCheck.period} شناسایی گیاه شما تمام شده (${usageCheck.limit} از ${usageCheck.limit})`,
           usageInfo: usageCheck,
           upgradeRequired: usageCheck.tier === 'free',
         });
@@ -1464,11 +1802,20 @@ router.post('/identify-base64', optionalAuthMiddleware, async (req: Request, res
     fs.writeFileSync(imagePath, imageBuffer);
     
     const fileSize = (imageBuffer.length / 1024).toFixed(1);
-    console.log(`📂 [API /identify-base64] فایل: ${filename} | سایز: ${fileSize} KB | نوع: ${mimeType}`);
+    console.log(`📂 [API /identify-base64] فایل: ${filename} | سایز: ${fileSize} KB | نوع: ${mimeType} | حالت: ${mode}`);
 
-    const result = shouldUsePlantNet()
-      ? await identifyPlantWithPlantNetAndGemini(imagePath, mimeType)
-      : await identifyPlantWithGemini(imagePath, mimeType);
+    let result: PlantIdentificationResult | null = null;
+    let suggestPro: string | undefined;
+    let lowConfidence = false;
+
+    if (mode === 'pro') {
+      result = await identifyPlantProMode(imagePath, mimeType);
+    } else {
+      const normalResult = await identifyPlantNormalMode(imagePath, mimeType);
+      result = normalResult.result;
+      suggestPro = normalResult.suggestPro;
+      lowConfidence = normalResult.lowConfidence || false;
+    }
 
     const totalElapsed = Date.now() - requestStart;
 
@@ -1477,22 +1824,25 @@ router.post('/identify-base64', optionalAuthMiddleware, async (req: Request, res
       console.log('════════════════════════════════════════════════════════════');
       return res.status(500).json({
         success: false,
-        message: 'خطا در شناسایی گیاه. لطفاً دوباره تلاش کنید.'
+        message: suggestPro || 'خطا در شناسایی گیاه. لطفاً دوباره تلاش کنید.',
+        suggestPro: !!suggestPro
       });
     }
 
-    console.log(`✅ [API /identify-base64] موفقیت در ${totalElapsed}ms | گیاه: ${result.name} (${result.scientificName}) | منبع: ${result.confidence >= 0.95 ? 'دیتابیس (کش)' : 'AI'}`);
+    console.log(`✅ [API /identify-base64] موفقیت در ${totalElapsed}ms | گیاه: ${result.name} (${result.scientificName}) | حالت: ${mode} | confidence: ${(result.confidence * 100).toFixed(1)}%`);
     console.log('════════════════════════════════════════════════════════════');
 
     // ثبت مصرف
     if (user) {
-      await trackUsage(user.id, 'identify');
+      await trackUsage(user.id, mode === 'pro' ? 'identify_pro' : 'identify');
     }
 
     res.json({
       success: true,
       message: 'گیاه با موفقیت شناسایی شد',
-      data: result
+      data: result,
+      lowConfidence,
+      suggestPro: suggestPro || undefined
     });
   } catch (error) {
     const totalElapsed = Date.now() - requestStart;
@@ -1628,6 +1978,71 @@ router.post('/disease-base64', optionalAuthMiddleware, async (req: Request, res:
     res.status(500).json({
       success: false,
       message: 'خطا در شناسایی بیماری گیاه'
+    });
+  }
+});
+
+// ===================================
+// POST /api/diagnosis/health-diagnosis-base64 - تشخیص تخصصی بیماری برای صفحه سلامت
+// ===================================
+router.post('/health-diagnosis-base64', optionalAuthMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user) {
+      const usageCheck = await checkUsageLimit(user.id, 'disease');
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: `سهمیه ${usageCheck.period} تشخیص بیماری شما تمام شده`,
+          usageInfo: usageCheck,
+          upgradeRequired: true,
+        });
+      }
+    }
+
+    const { image, mimeType = 'image/jpeg' } = req.body;
+
+    if (!image) {
+      return res.status(400).json({
+        success: false,
+        message: 'لطفاً یک تصویر ارسال کنید'
+      });
+    }
+
+    const filename = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.jpg`;
+    const imagePath = path.join(uploadsDir, filename);
+    
+    const imageBuffer = Buffer.from(image, 'base64');
+    fs.writeFileSync(imagePath, imageBuffer);
+
+    const result = await identifyPlantWithGemini(imagePath, mimeType, createHealthDiagnosisPrompt());
+
+    if (!result) {
+      return res.status(500).json({
+        success: false,
+        message: 'خطا در تشخیص بیماری گیاه. لطفاً دوباره تلاش کنید.'
+      });
+    }
+
+    // ثبت مصرف
+    if (user) {
+      const currentUsage = await checkUsageLimit(user.id, 'disease');
+      if (currentUsage.remaining <= 0 && currentUsage.purchasedScansRemaining && currentUsage.purchasedScansRemaining > 0) {
+        await consumePurchasedScan(user.id);
+      }
+      await trackUsage(user.id, 'disease');
+    }
+
+    res.json({
+      success: true,
+      message: 'تشخیص بیماری با موفقیت انجام شد',
+      data: result
+    });
+  } catch (error) {
+    console.error('Health diagnosis base64 error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطا در تشخیص بیماری گیاه'
     });
   }
 });
