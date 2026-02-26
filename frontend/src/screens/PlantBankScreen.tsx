@@ -3,11 +3,10 @@ import styled from 'styled-components';
 import { Search, Leaf, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import defaultPlantImage from '../assets/default-plant.svg';
 
 const API_URL = 'http://130.185.76.46:4380/api';
 const SERVER_URL = 'http://130.185.76.46:4380';
-
-import defaultPlantImage from '../assets/default-plant.svg';
 
 const getFullImageUrl = (imagePath: string | null | undefined): string => {
   if (!imagePath) return defaultPlantImage;
