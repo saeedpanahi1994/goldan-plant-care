@@ -31,6 +31,21 @@ npx cap add android
 # Sync to Android
 npx cap sync android
 
+# === Force targetSdkVersion and compileSdkVersion to 35 ===
+echo "Updating SDK versions to 35..."
+VARIABLES_FILE="android/variables.gradle"
+sed -i 's/compileSdkVersion = .*/compileSdkVersion = 35/' "$VARIABLES_FILE"
+sed -i 's/targetSdkVersion = .*/targetSdkVersion = 35/' "$VARIABLES_FILE"
+sed -i 's/minSdkVersion = .*/minSdkVersion = 24/' "$VARIABLES_FILE"
+
+# Also update build.gradle directly in case variables.gradle is not used
+sed -i 's/compileSdk .*/compileSdk 35/' "android/app/build.gradle"
+sed -i 's/targetSdkVersion .*/targetSdkVersion 35/' "android/app/build.gradle"
+sed -i 's/minSdkVersion .*/minSdkVersion 24/' "android/app/build.gradle"
+
+echo "SDK versions updated:"
+grep -E "compileSdk|targetSdk|minSdk" "$VARIABLES_FILE"
+
 # Copy new app icons from resources
 if [ -d "resources/res" ]; then
     echo "Copying custom app icons..."

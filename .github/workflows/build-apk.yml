@@ -42,21 +42,6 @@ jobs:
         cd frontend
         npm install
 
-    - name: Build React application
-      run: |
-        cd frontend
-        CI=false npm run build
-
-    - name: Sync Capacitor
-      run: |
-        cd frontend
-        npx cap sync android
-
-    - name: Make gradlew executable
-      run: |
-        cd frontend/android
-        chmod +x gradlew
-
     - name: Build Release APK
       run: |
         chmod +x ./build_apk_fresh.sh
