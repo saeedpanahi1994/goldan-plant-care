@@ -1,8 +1,19 @@
 #!/bin/bash
+set -e
+
 export JAVA_HOME=$JAVA_HOME_17_X64
 export PATH=$JAVA_HOME_17_X64/bin:$PATH
 java -version
 echo "Using Java from: $JAVA_HOME"
+
+# Create keystore in project root (outside android folder so it survives rebuild)
+if [ ! -f "goldan-release-key.jks" ]; then
+    echo "Creating release keystore..."
+    keytool -genkeypair -v -keystore goldan-release-key.jks \
+        -alias goldan-key -keyalg RSA -keysize 2048 -validity 10000 \
+        -storepass goldan123456 -keypass goldan123456 \
+        -dname "CN=Goldan, OU=Plant Care, O=Goldan, L=Tehran, ST=Tehran, C=IR"
+fi
 
 # Remove old Android project
 rm -rf frontend/android
@@ -11,32 +22,60 @@ rm -rf frontend/android
 cd frontend
 npm install
 
+# Build React app
+CI=false npm run build
+
 # Regenerate Android project
 npx cap add android
-
-# Build React app
-npm run build
 
 # Sync to Android
 npx cap sync android
 
-# Build APK
-cd android
-chmod +x gradlew
-
-# Create keystore if doesn't exist
-if [ ! -f "app/goldan-release-key.jks" ]; then
-    echo "Creating release keystore..."
-    keytool -genkeypair -v -keystore app/goldan-release-key.jks \
-        -alias goldan-key -keyalg RSA -keysize 2048 -validity 10000 \
-        -storepass goldan123456 -keypass goldan123456 \
-        -dname "CN=Goldan, OU=Plant Care, O=Goldan, L=Tehran, ST=Tehran, C=IR"
+# Copy new app icons from resources
+if [ -d "resources/res" ]; then
+    echo "Copying custom app icons..."
+    cp -rf resources/res/mipmap-hdpi/* android/app/src/main/res/mipmap-hdpi/
+    cp -rf resources/res/mipmap-mdpi/* android/app/src/main/res/mipmap-mdpi/
+    cp -rf resources/res/mipmap-xhdpi/* android/app/src/main/res/mipmap-xhdpi/
+    cp -rf resources/res/mipmap-xxhdpi/* android/app/src/main/res/mipmap-xxhdpi/
+    cp -rf resources/res/mipmap-xxxhdpi/* android/app/src/main/res/mipmap-xxxhdpi/
+    mkdir -p android/app/src/main/res/mipmap-anydpi-v26/
+    cp -rf resources/res/mipmap-anydpi-v26/* android/app/src/main/res/mipmap-anydpi-v26/
+    echo "Icons copied successfully"
 fi
 
-# Set environment variables for signing
-export KEYSTORE_FILE=goldan-release-key.jks
-export KEYSTORE_PASSWORD=goldan123456
-export KEY_ALIAS=goldan-key
-export KEY_PASSWORD=goldan123456
+# Copy keystore into android app folder
+cp ../goldan-release-key.jks android/app/goldan-release-key.jks
 
+# Inject signing config into build.gradle
+cd android
+
+GRADLE_FILE="app/build.gradle"
+echo "Injecting signing config into build.gradle..."
+
+# Use sed to add signingConfigs block after compileSdk line
+sed -i '/compileSdk/a\
+\
+    signingConfigs {\
+        release {\
+            storeFile file("goldan-release-key.jks")\
+            storePassword "goldan123456"\
+            keyAlias "goldan-key"\
+            keyPassword "goldan123456"\
+        }\
+    }' "$GRADLE_FILE"
+
+# Update release buildType to use signingConfig
+sed -i 's/minifyEnabled false/minifyEnabled false\n            signingConfig signingConfigs.release/' "$GRADLE_FILE"
+
+echo "=== Final build.gradle ==="
+cat "$GRADLE_FILE"
+echo "==========================="
+
+chmod +x gradlew
 ./gradlew clean assembleRelease --no-daemon
+
+echo ""
+echo "=== Build Complete ==="
+ls -la app/build/outputs/apk/release/ || echo "Release APK not found, checking debug..."
+ls -la app/build/outputs/apk/debug/ 2>/dev/null || true

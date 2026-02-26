@@ -62,10 +62,18 @@ jobs:
         chmod +x ./build_apk_fresh.sh
         ./build_apk_fresh.sh
 
+    - name: List APK outputs
+      if: always()
+      run: |
+        echo "=== Checking release APKs ==="
+        find frontend/android/app/build/outputs/apk/ -name "*.apk" 2>/dev/null || echo "No APKs found"
+
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       if: success()
       with:
         name: goldan-release-apk
-        path: frontend/android/app/build/outputs/apk/release/app-release.apk
+        path: |
+          frontend/android/app/build/outputs/apk/release/*.apk
+          frontend/android/app/build/outputs/apk/release/app-release-unsigned.apk
         retention-days: 30
