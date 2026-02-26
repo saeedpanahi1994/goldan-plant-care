@@ -917,27 +917,27 @@ const PlantHealthScreen: React.FC = () => {
 
   const pickFromGallery = async () => {
     try {
-      if (Capacitor.isNativePlatform() || Capacitor.getPlatform() === 'android' || Capacitor.getPlatform() === 'ios') {
-        const photo = await CapCamera.getPhoto({
-          quality: 85,
-          allowEditing: false,
-          resultType: CameraResultType.Base64,
-          source: CameraSource.Photos,
-          width: 1024,
-          height: 1024,
-        });
-        if (photo.base64String) {
-          setBase64Image(photo.base64String);
-          setSelectedImage(`data:image/jpeg;base64,${photo.base64String}`);
-          setDiagnosisResult(null);
-          setScanError(null);
-          setSaved(false);
-        }
-      } else {
+      const photo = await CapCamera.getPhoto({
+        quality: 85,
+        allowEditing: false,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Photos,
+        width: 1024,
+        height: 1024,
+      });
+      if (photo.base64String) {
+        setBase64Image(photo.base64String);
+        setSelectedImage(`data:image/${photo.format || 'jpeg'};base64,${photo.base64String}`);
+        setDiagnosisResult(null);
+        setScanError(null);
+        setSaved(false);
+      }
+    } catch (err: any) {
+      if (err.message !== 'User cancelled photos app') {
+        console.error('خطا در دسترسی به گالری:', err);
+        // Fallback to file input
         fileInputRef.current?.click();
       }
-    } catch (err) {
-      console.log('گالری لغو شد');
     }
   };
 

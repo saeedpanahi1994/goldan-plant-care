@@ -234,6 +234,7 @@ const SuggestionChip = styled.button`
 
 const InputArea = styled.div`
   padding: 16px 20px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 16px);
   background: #ffffff;
   border-top: 1px solid #e0e0e0;
   display: flex;

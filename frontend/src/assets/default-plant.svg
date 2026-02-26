@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <rect width="400" height="400" rx="20" fill="#E8F5E9"/>
+  <circle cx="200" cy="200" r="120" fill="#C8E6C9"/>
+  <path d="M200 280 L200 180" stroke="#4CAF50" stroke-width="6" stroke-linecap="round"/>
+  <path d="M200 220 C200 220 160 190 160 160 C160 130 200 130 200 160" fill="#66BB6A"/>
+  <path d="M200 200 C200 200 240 170 240 140 C240 110 200 110 200 140" fill="#4CAF50"/>
+  <path d="M200 240 C200 240 150 215 150 185 C150 155 200 155 200 185" fill="#81C784"/>
+  <ellipse cx="200" cy="285" rx="40" ry="8" fill="#A5D6A7" opacity="0.5"/>
+  <text x="200" y="350" text-anchor="middle" fill="#9E9E9E" font-family="sans-serif" font-size="14">تصویر موجود نیست</text>
+</svg>

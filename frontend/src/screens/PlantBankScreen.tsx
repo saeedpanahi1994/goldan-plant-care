@@ -7,8 +7,10 @@ import axios from 'axios';
 const API_URL = 'http://130.185.76.46:4380/api';
 const SERVER_URL = 'http://130.185.76.46:4380';
 
+import defaultPlantImage from '../assets/default-plant.svg';
+
 const getFullImageUrl = (imagePath: string | null | undefined): string => {
-  if (!imagePath) return 'https://via.placeholder.com/400x400?text=گیاه';
+  if (!imagePath) return defaultPlantImage;
   if (imagePath.startsWith('http')) return imagePath;
   return `${SERVER_URL}${imagePath}`;
 };
@@ -444,7 +446,7 @@ const PlantBankScreen: React.FC = () => {
                         e.currentTarget.parentElement?.classList.add('image-loaded');
                       }}
                       onError={(e) => {
-                        e.currentTarget.src = 'https://via.placeholder.com/400x400?text=گیاه';
+                        e.currentTarget.src = defaultPlantImage;
                         e.currentTarget.classList.remove('loading');
                         e.currentTarget.classList.add('loaded');
                         e.currentTarget.parentElement?.classList.remove('image-loading');

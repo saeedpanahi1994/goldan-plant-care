@@ -133,12 +133,12 @@ const SectionTitle = styled.h2`
 
 const FloatingAddButton = styled.button`
   position: fixed;
-  bottom: 120px;
+  bottom: 100px;
   left: 20px;
   background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
   border: none;
-  width: 56px;
-  height: 56px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -146,7 +146,7 @@ const FloatingAddButton = styled.button`
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 
-    0 8px 24px rgba(76, 175, 80, 0.3),
+    0 6px 20px rgba(76, 175, 80, 0.3),
     inset 0 1px 2px rgba(255, 255, 255, 0.3);
   z-index: 1000;
 
@@ -856,7 +856,7 @@ const GardenScreen: React.FC = () => {
       </ContentSection>
       
       <FloatingAddButton onClick={handleAddPlant}>
-        <Plus size={24} />
+        <Plus size={20} />
       </FloatingAddButton>
 
       <ReminderModal

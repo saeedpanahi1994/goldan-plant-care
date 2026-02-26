@@ -9,8 +9,10 @@ const API_URL = 'http://130.185.76.46:4380/api';
 const SERVER_URL = 'http://130.185.76.46:4380';
 
 // Helper function to get full image URL
+import defaultPlantImage from '../assets/default-plant.svg';
+
 const getFullImageUrl = (imagePath: string | null | undefined): string => {
-  if (!imagePath) return 'https://via.placeholder.com/400x400?text=گیاه';
+  if (!imagePath) return defaultPlantImage;
   if (imagePath.startsWith('http')) return imagePath;
   return `${SERVER_URL}${imagePath}`;
 };
@@ -937,7 +939,7 @@ const PlantDetailScreen: React.FC = () => {
             alt={plant.name_fa}
             onLoad={() => setMainImageLoaded(true)}
             onError={(e) => {
-              e.currentTarget.src = 'https://via.placeholder.com/400x400?text=گیاه';
+              e.currentTarget.src = defaultPlantImage;
               setMainImageLoaded(true);
             }}
           />

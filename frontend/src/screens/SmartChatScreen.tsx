@@ -177,10 +177,95 @@ const EmptyState = styled.div`
   }
 `;
 
+const DeleteButton = styled.button`
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  color: #bdbdbd;
+
+  &:hover {
+    background: #ffebee;
+    color: #e53935;
+  }
+`;
+
+const ConfirmOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+`;
+
+const ConfirmDialog = styled.div`
+  background: white;
+  border-radius: 20px;
+  padding: 28px 24px;
+  width: 85%;
+  max-width: 340px;
+  text-align: center;
+  direction: rtl;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+`;
+
+const ConfirmTitle = styled.h3`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 8px 0;
+`;
+
+const ConfirmText = styled.p`
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  color: #757575;
+  margin: 0 0 20px 0;
+  line-height: 1.6;
+`;
+
+const ConfirmButtons = styled.div`
+  display: flex;
+  gap: 12px;
+`;
+
+const ConfirmBtn = styled.button<{ $danger?: boolean }>`
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: ${props => props.$danger ? 'linear-gradient(135deg, #e53935, #c62828)' : '#f5f5f5'};
+  color: ${props => props.$danger ? 'white' : '#616161'};
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: ${props => props.$danger ? '0 4px 12px rgba(229, 57, 53, 0.3)' : '0 2px 8px rgba(0,0,0,0.1)'};
+  }
+`;
+
 const SmartChatScreen: React.FC = () => {
   const navigate = useNavigate();
   const [history, setHistory] = useState<ChatHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<ChatHistoryItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchHistory();
@@ -220,9 +305,30 @@ const SmartChatScreen: React.FC = () => {
 
   const handleCardClick = (item: ChatHistoryItem) => {
     if (item.plant_id) {
-      // اگر گیاه در باغچه کاربر باشه، از سورس گاردن استفاده کن
       const sourceQuery = item.is_user_plant ? '?source=garden' : '';
       navigate(`/plant/${item.plant_id}${sourceQuery}`, { state: { openChat: true } });
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, item: ChatHistoryItem) => {
+    e.stopPropagation();
+    setDeleteTarget(item);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || !deleteTarget.plant_id) return;
+    setDeleting(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      await axios.delete(`${API_URL}/chat/${deleteTarget.plant_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setHistory(prev => prev.filter(h => h.plant_id !== deleteTarget.plant_id));
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -251,10 +357,15 @@ const SmartChatScreen: React.FC = () => {
                   <Bot size={14} />
                   {item.plant_name || 'سوال کلی'}
                 </PlantBadge>
-                <DateText>
-                  <Clock size={12} />
-                  {formatDate(item.created_at)}
-                </DateText>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <DateText>
+                    <Clock size={12} />
+                    {formatDate(item.created_at)}
+                  </DateText>
+                  <DeleteButton onClick={(e) => handleDeleteClick(e, item)}>
+                    <Trash2 size={16} />
+                  </DeleteButton>
+                </div>
               </CardHeader>
               
               <QuestionSection>
@@ -264,6 +375,23 @@ const SmartChatScreen: React.FC = () => {
             </ChatCard>
           ))}
         </ListContainer>
+      )}
+
+      {deleteTarget && (
+        <ConfirmOverlay onClick={() => setDeleteTarget(null)}>
+          <ConfirmDialog onClick={(e) => e.stopPropagation()}>
+            <ConfirmTitle>حذف گفتگو</ConfirmTitle>
+            <ConfirmText>
+              آیا از حذف گفتگوی «{deleteTarget.plant_name || 'سوال کلی'}» مطمئن هستید؟
+            </ConfirmText>
+            <ConfirmButtons>
+              <ConfirmBtn onClick={() => setDeleteTarget(null)}>انصراف</ConfirmBtn>
+              <ConfirmBtn $danger onClick={confirmDelete} disabled={deleting}>
+                {deleting ? 'در حال حذف...' : 'حذف'}
+              </ConfirmBtn>
+            </ConfirmButtons>
+          </ConfirmDialog>
+        </ConfirmOverlay>
       )}
     </ScreenContainer>
   );
