@@ -11,6 +11,7 @@ import axios from 'axios';
 import { Capacitor } from '@capacitor/core';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { diagnoseHealthFromBase64, identifyPlantFromBase64 } from '../services/plantApiService';
+import QuotaExhaustedModal from '../components/QuotaExhaustedModal';
 
 const API_URL = 'http://130.185.76.46:4380/api';
 const SERVER_URL = 'http://130.185.76.46:4380';
@@ -838,6 +839,8 @@ const PlantHealthScreen: React.FC = () => {
   const [scanError, setScanError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [quotaUsageInfo, setQuotaUsageInfo] = useState<any>(null);
 
   const healthStatusLabels: Record<string, string> = {
     healthy: '🌿 سالم',
@@ -968,9 +971,32 @@ const PlantHealthScreen: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // بررسی سهمیه قبل از اسکن
+  const checkQuotaBeforeScan = async (): Promise<boolean> => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return true; // کاربر لاگین نکرده، بک‌اند خودش هندل می‌کنه
+      const response = await axios.get(`${API_URL}/subscription/check/disease`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success && !response.data.allowed) {
+        setQuotaUsageInfo(response.data);
+        setShowQuotaModal(true);
+        return false;
+      }
+      return true;
+    } catch {
+      return true; // در صورت خطا اجازه بده بک‌اند خودش هندل کنه
+    }
+  };
+
   // Disease scan with plant verification
   const handleScan = async () => {
     if (!base64Image) return;
+
+    // بررسی سهمیه قبل از شروع اسکن
+    const quotaOk = await checkQuotaBeforeScan();
+    if (!quotaOk) return;
 
     setIsScanning(true);
     setScanError(null);
@@ -1016,6 +1042,12 @@ const PlantHealthScreen: React.FC = () => {
       setTimeout(() => {
         if (response.success && response.data) {
           setDiagnosisResult(response.data);
+        } else if ((response as any).upgradeRequired || (response as any).usageInfo) {
+          // سهمیه در حین درخواست تمام شد (race condition)
+          setQuotaUsageInfo((response as any).usageInfo || {
+            used: 1, limit: 1, period: 'هفتگی', remaining: 0, tier: 'free'
+          });
+          setShowQuotaModal(true);
         } else {
           setScanError(response.message || 'خطا در تشخیص بیماری');
         }
@@ -1129,6 +1161,7 @@ const PlantHealthScreen: React.FC = () => {
   }
 
   return (
+    <>
     <ScreenContainer>
       <Header>
         <BackButton onClick={() => navigate(-1)}>
@@ -1576,6 +1609,15 @@ const PlantHealthScreen: React.FC = () => {
         )}
       </HistorySection>
     </ScreenContainer>
+
+    {/* Quota Exhausted Modal */}
+    <QuotaExhaustedModal
+      isOpen={showQuotaModal}
+      onClose={() => setShowQuotaModal(false)}
+      usageInfo={quotaUsageInfo || { used: 1, limit: 1, period: 'هفتگی', remaining: 0, tier: 'free' }}
+      featureType="disease"
+    />
+    </>
   );
 };
 

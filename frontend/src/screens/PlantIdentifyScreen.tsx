@@ -5,6 +5,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { identifyPlantFromFile, identifyPlantFromBase64, identifyDiseaseFromFile, identifyDiseaseFromBase64, PlantIdentificationResult, addIdentifiedPlantToGarden, getDefaultGarden } from '../services/plantApiService';
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import HeaderComponent from '../components/Header';
+import QuotaExhaustedModal from '../components/QuotaExhaustedModal';
+import axios from 'axios';
 
 const API_BASE_URL = 'http://130.185.76.46:4380';
 
@@ -892,6 +894,8 @@ const PlantIdentifyScreen: React.FC = () => {
   const [identifyMode, setIdentifyMode] = useState<'normal' | 'pro'>('normal');
   const [suggestPro, setSuggestPro] = useState(false);
   const [lowConfidence, setLowConfidence] = useState(false);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [quotaUsageInfo, setQuotaUsageInfo] = useState<any>(null);
 
   // ساخت URL کامل برای تصاویر
   const getFullImageUrl = (url: string) => {
@@ -1038,8 +1042,32 @@ const PlantIdentifyScreen: React.FC = () => {
     }
   };
 
+  // بررسی سهمیه قبل از شناسایی
+  const checkQuotaBeforeIdentify = async (): Promise<boolean> => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return true;
+      const actionType = isDiseaseMode ? 'disease' : (identifyMode === 'pro' ? 'identify_pro' : 'identify');
+      const response = await axios.get(`${API_BASE_URL}/api/subscription/check/${actionType}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success && !response.data.allowed) {
+        setQuotaUsageInfo(response.data);
+        setShowQuotaModal(true);
+        return false;
+      }
+      return true;
+    } catch {
+      return true;
+    }
+  };
+
   const handleIdentify = async () => {
     if (!selectedImage && !base64Image) return;
+
+    // بررسی سهمیه قبل از شروع
+    const quotaOk = await checkQuotaBeforeIdentify();
+    if (!quotaOk) return;
 
     setIsLoading(true);
     setError(null);
@@ -1085,6 +1113,12 @@ const PlantIdentifyScreen: React.FC = () => {
           // بررسی پیشنهاد Pro و اعتماد پایین
           if (response.suggestPro) setSuggestPro(true);
           if (response.lowConfidence) setLowConfidence(true);
+        } else if (response.upgradeRequired || response.usageInfo) {
+          // سهمیه تمام شده
+          setQuotaUsageInfo(response.usageInfo || {
+            used: 1, limit: 1, period: 'هفتگی', remaining: 0, tier: 'free'
+          });
+          setShowQuotaModal(true);
         } else {
           setError(response.message || (isDiseaseMode ? 'خطا در شناسایی بیماری گیاه' : 'خطا در شناسایی گیاه'));
           // حتی در حالت خطا هم ممکنه پیشنهاد Pro بدهد
@@ -1122,6 +1156,10 @@ const PlantIdentifyScreen: React.FC = () => {
   // تابع شناسایی با حالت مشخص
   const handleIdentifyWithMode = async (mode: 'normal' | 'pro') => {
     if (!selectedImage && !base64Image) return;
+
+    // بررسی سهمیه
+    const quotaOk = await checkQuotaBeforeIdentify();
+    if (!quotaOk) return;
 
     setIsLoading(true);
     setError(null);
@@ -1162,6 +1200,11 @@ const PlantIdentifyScreen: React.FC = () => {
           setResult(response.data);
           if (response.suggestPro) setSuggestPro(true);
           if (response.lowConfidence) setLowConfidence(true);
+        } else if (response.upgradeRequired || response.usageInfo) {
+          setQuotaUsageInfo(response.usageInfo || {
+            used: 1, limit: 1, period: 'هفتگی', remaining: 0, tier: 'free'
+          });
+          setShowQuotaModal(true);
         } else {
           setError(response.message || (isDiseaseMode ? 'خطا در شناسایی بیماری گیاه' : 'خطا در شناسایی گیاه'));
           if (response.suggestPro) setSuggestPro(true);
@@ -1182,6 +1225,7 @@ const PlantIdentifyScreen: React.FC = () => {
   };
 
   return (
+    <>
     <ScreenContainer>
       <Header>
         <BackButton onClick={() => navigate(-1)}>
@@ -1551,6 +1595,15 @@ const PlantIdentifyScreen: React.FC = () => {
         )}
       </Content>
     </ScreenContainer>
+
+    {/* Quota Exhausted Modal */}
+    <QuotaExhaustedModal
+      isOpen={showQuotaModal}
+      onClose={() => setShowQuotaModal(false)}
+      usageInfo={quotaUsageInfo || { used: 1, limit: 1, period: 'هفتگی', remaining: 0, tier: 'free' }}
+      featureType={isDiseaseMode ? 'disease' : 'identify'}
+    />
+    </>
   );
 };
 
