@@ -31,6 +31,20 @@ npx cap add android
 # Sync to Android
 npx cap sync android
 
+# === Upgrade Android Gradle Plugin to support compileSdk 35 ===
+echo "Upgrading Android Gradle Plugin..."
+PROJECT_GRADLE="android/build.gradle"
+sed -i "s/classpath 'com.android.tools.build:gradle:8.0.0'/classpath 'com.android.tools.build:gradle:8.2.2'/" "$PROJECT_GRADLE"
+echo "AGP version updated to 8.2.2"
+
+# Upgrade Gradle wrapper to 8.4 (required for AGP 8.2.x)
+echo "Upgrading Gradle wrapper to 8.4..."
+sed -i 's|gradle-8.0.2-all.zip|gradle-8.4-all.zip|' "android/gradle/wrapper/gradle-wrapper.properties"
+
+# Add suppress warning to gradle.properties
+echo "" >> "android/gradle.properties"
+echo "android.suppressUnsupportedCompileSdk=35" >> "android/gradle.properties"
+
 # === Force targetSdkVersion and compileSdkVersion to 35 ===
 echo "Updating SDK versions to 35..."
 VARIABLES_FILE="android/variables.gradle"
