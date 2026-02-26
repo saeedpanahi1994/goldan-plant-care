@@ -192,7 +192,7 @@ const generateOpenRouterContent = async (prompt: string): Promise<string | null>
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:3000',
-      'X-Title': 'Goldan Plant Care App'
+      'X-Title': 'گلدون'
     },
     timeout: 60000
   };

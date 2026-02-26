@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.goldan.plantcare',
-  appName: 'Goldan Plant Care',
+  appName: 'گلدون',
   webDir: 'build',
   server: {
     androidScheme: 'http',

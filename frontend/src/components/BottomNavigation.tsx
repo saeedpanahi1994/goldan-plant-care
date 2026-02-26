@@ -140,10 +140,10 @@ const BottomNavigation: React.FC = () => {
       path: '/'
     },
     {
-      id: 'home',
-      icon: Home,
-      label: 'خانه', 
-      path: '/home'
+      id: 'bank', 
+      icon: Search,
+      label: 'بانک',
+      path: '/plant-bank'
     },
     {
       id: 'camera',
@@ -153,10 +153,10 @@ const BottomNavigation: React.FC = () => {
       camera: true
     },
     {
-      id: 'bank', 
-      icon: Search,
-      label: 'بانک',
-      path: '/plant-bank'
+      id: 'home',
+      icon: Home,
+      label: 'خانه', 
+      path: '/home'
     },
     {
       id: 'chat',

@@ -137,9 +137,7 @@ const ButtonsContainer = styled.div`
 `;
 
 const BellButton = styled.button<{ $hasNotification?: boolean }>`
-  background: ${props => props.$hasNotification 
-    ? 'linear-gradient(135deg, #FFB74D 0%, #FFA726 100%)' 
-    : 'linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%)'};
+  background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
   border: none;
   width: 44px;
   height: 44px;
@@ -149,17 +147,13 @@ const BellButton = styled.button<{ $hasNotification?: boolean }>`
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: ${props => props.$hasNotification
-    ? '0 4px 12px rgba(255, 152, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.3)'
-    : '0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 2px rgba(255, 255, 255, 0.5)'};
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), inset 0 1px 2px rgba(255, 255, 255, 0.5);
   position: relative;
   flex-shrink: 0;
 
   &:hover {
     transform: scale(1.05);
-    box-shadow: ${props => props.$hasNotification
-      ? '0 6px 16px rgba(255, 152, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.4)'
-      : '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.6)'};
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.6);
   }
 
   &:active {
@@ -167,23 +161,8 @@ const BellButton = styled.button<{ $hasNotification?: boolean }>`
   }
 
   svg {
-    color: ${props => props.$hasNotification ? '#fff' : '#9e9e9e'};
+    color: #9e9e9e;
   }
-
-  ${props => props.$hasNotification && `
-    &::after {
-      content: '';
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      width: 8px;
-      height: 8px;
-      background: #f44336;
-      border-radius: 50%;
-      border: 2px solid #fff;
-      box-shadow: 0 2px 4px rgba(244, 67, 54, 0.4);
-    }
-  `}
 `;
 
 const DeleteButton = styled.button`

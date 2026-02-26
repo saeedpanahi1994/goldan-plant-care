@@ -160,6 +160,10 @@ const ProfileScreen: React.FC = () => {
       } else {
         alert('قابلیت اشتراک‌گذاری در مرورگر شما پشتیبانی نمی‌شود.');
       }
+    } else if (menuItem === 'درباره ما') {
+      window.open('https://gooldoon.ir', '_blank');
+    } else if (menuItem === 'حریم خصوصی و امنیت') {
+      window.open('https://pages.flycricket.io/plantix/privacy.html', '_blank');
     } else {
       alert(`${menuItem} به زودی فعال خواهد شد`);
     }
