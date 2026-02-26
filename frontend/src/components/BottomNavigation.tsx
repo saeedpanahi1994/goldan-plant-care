@@ -22,6 +22,7 @@ const NavContainer = styled.nav`
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
   padding: 0 20px;
+  padding-bottom: env(safe-area-inset-bottom, 8px);
   
   &::before {
     content: '';

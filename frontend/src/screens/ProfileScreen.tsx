@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import { User, Settings, Info, Share2, Shield, LogOut, Phone, Crown, Bot } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { Browser } from '@capacitor/browser';
 
 const ScreenContainer = styled.div`
   min-height: calc(100vh - 90px);
@@ -161,9 +162,9 @@ const ProfileScreen: React.FC = () => {
         alert('قابلیت اشتراک‌گذاری در مرورگر شما پشتیبانی نمی‌شود.');
       }
     } else if (menuItem === 'درباره ما') {
-      window.open('https://gooldoon.ir', '_blank');
+      Browser.open({ url: 'https://gooldoon.ir' });
     } else if (menuItem === 'حریم خصوصی و امنیت') {
-      window.open('https://pages.flycricket.io/plantix/privacy.html', '_blank');
+      Browser.open({ url: 'https://pages.flycricket.io/plantix/privacy.html' });
     } else {
       alert(`${menuItem} به زودی فعال خواهد شد`);
     }

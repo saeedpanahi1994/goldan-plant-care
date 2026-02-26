@@ -9,6 +9,7 @@ const HeaderContainer = styled.header`
   justify-content: space-between;
   align-items: center;
   padding: 12px 18px;
+  padding-top: calc(env(safe-area-inset-top, 12px) + 12px);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 100%);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(76, 175, 80, 0.08);
