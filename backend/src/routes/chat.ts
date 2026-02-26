@@ -129,4 +129,31 @@ router.get('/plant/:plantId', authMiddleware, async (req: Request, res: Response
   }
 });
 
+// ===================================
+// DELETE /api/chat/:plantId - Delete all chat history for a specific plant
+// ===================================
+router.delete('/:plantId', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    const { plantId } = req.params;
+
+    const result = await query(`
+      DELETE FROM plant_chat_history
+      WHERE user_id = $1 AND plant_id = $2
+    `, [user.id, plantId]);
+
+    res.json({
+      success: true,
+      message: 'تاریخچه چت با موفقیت حذف شد',
+      deletedCount: result.rowCount
+    });
+  } catch (error) {
+    console.error('Delete chat error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطا در حذف تاریخچه چت'
+    });
+  }
+});
+
 export default router;
