@@ -48,6 +48,7 @@ const ScreenContainer = styled.div`
 const TopHeader = styled.div`
   background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 40%, #388e3c 100%);
   padding: 16px 20px 24px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
   position: relative;
   overflow: hidden;
 

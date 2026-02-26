@@ -48,6 +48,7 @@ const ScreenContainer = styled.div`
 
 const Header = styled.header`
   padding: 20px 24px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
   display: flex;
   align-items: center;
   justify-content: flex-start;

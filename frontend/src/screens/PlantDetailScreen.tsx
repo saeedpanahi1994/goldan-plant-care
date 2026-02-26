@@ -1129,13 +1129,13 @@ const PlantDetailScreen: React.FC = () => {
             <HeartPulse size={18} />
             سلامت گیاه
           </HealthButton>
-          <AnalysisButton onClick={() => navigate('/analysis')}>
+          <AnalysisButton disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
             <Leaf size={18} />
             آنالیز محیط
           </AnalysisButton>
         </ActionButtonsRow>
       ) : (
-        <AddToGardenButton onClick={() => navigate('/analysis')}>
+        <AddToGardenButton disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
           آنالیز محیط
         </AddToGardenButton>
       )}

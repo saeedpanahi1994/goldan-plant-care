@@ -10,6 +10,7 @@ const ScreenContainer = styled.div`
   min-height: calc(100vh - 90px);
   background: #f8f9fa;
   direction: rtl;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
 `;
 
 const ProfileCard = styled.div`

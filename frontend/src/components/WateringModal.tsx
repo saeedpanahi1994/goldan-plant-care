@@ -225,6 +225,44 @@ const ActionButton = styled.button`
   }
 `;
 
+const GroupWaterButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+  color: white;
+  font-family: 'Vazirmatn', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: auto;
+  box-shadow: 0 2px 6px rgba(76,175,80,0.3);
+
+  &:hover {
+    transform: scale(1.04);
+    box-shadow: 0 4px 10px rgba(76,175,80,0.4);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+`;
+
+const SectionRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 8px 0;
+
+  &:first-child {
+    margin-top: 0;
+  }
+`;
+
 // Custom Droplet SVG to match user request better
 const StyledDroplet = ({ status }: { status: 'past' | 'today' | 'tomorrow' }) => {
   const color = status === 'past' ? '#f44336' : status === 'today' ? '#ff9800' : '#4CAF50';
@@ -350,6 +388,31 @@ const WateringModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
     }
   };
 
+  const handleWaterGroup = async (ids: string[]) => {
+    for (const plantId of ids) {
+      try {
+        const token = localStorage.getItem('authToken');
+        await axios.post(`${API_URL}/plants/${plantId}/water`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const completedMap = readCompletedMap();
+        completedMap[plantId] = getTodayKey();
+        writeCompletedMap(completedMap);
+      } catch (error) {
+        console.error('Error watering plant', plantId, error);
+      }
+    }
+    setReminders(prev => {
+      const next = prev.map(p =>
+        ids.includes(p.id) ? { ...p, completed: true } : p
+      );
+      const allCompleted = next.every(p => p.completed);
+      if (allCompleted) setTimeout(() => handleClose(), 1000);
+      return next;
+    });
+    window.dispatchEvent(new Event('watering-updated'));
+  };
+
   const handleClose = () => {
     setClosing(true);
     setTimeout(() => {
@@ -389,10 +452,18 @@ const WateringModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
             
             {pastReminders.length > 0 && (
                 <>
-                    <SectionTitle>
-                        <Clock size={16} />
-                        فراموش شده‌ها
-                    </SectionTitle>
+                    <SectionRow>
+                        <SectionTitle style={{ margin: 0 }}>
+                            <Clock size={16} />
+                            فراموش شده‌ها
+                        </SectionTitle>
+                        {pastReminders.some(r => !r.completed) && (
+                            <GroupWaterButton onClick={() => handleWaterGroup(pastReminders.filter(r => !r.completed).map(r => r.id))}>
+                                <Check size={12} />
+                                همه را آب بده
+                            </GroupWaterButton>
+                        )}
+                    </SectionRow>
                     {pastReminders.map(item => (
                         <ReminderCard key={item.id} $completed={item.completed}>
                             <PlantImage src={item.image.startsWith('http') ? item.image : `http://130.185.76.46:4380${item.image}`} />
@@ -417,10 +488,18 @@ const WateringModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 
             {todayReminders.length > 0 && (
                 <>
-                    <SectionTitle>
-                        <Calendar size={16} />
-                        امروز
-                    </SectionTitle>
+                    <SectionRow>
+                        <SectionTitle style={{ margin: 0 }}>
+                            <Calendar size={16} />
+                            امروز
+                        </SectionTitle>
+                        {todayReminders.some(r => !r.completed) && (
+                            <GroupWaterButton onClick={() => handleWaterGroup(todayReminders.filter(r => !r.completed).map(r => r.id))}>
+                                <Check size={12} />
+                                همه را آب بده
+                            </GroupWaterButton>
+                        )}
+                    </SectionRow>
                     {todayReminders.map(item => (
                         <ReminderCard key={item.id} $completed={item.completed}>
                             <PlantImage src={item.image.startsWith('http') ? item.image : `http://130.185.76.46:4380${item.image}`} />
@@ -445,10 +524,18 @@ const WateringModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 
             {tmrwReminders.length > 0 && (
                 <>
-                     <SectionTitle>
-                        <Calendar size={16} />
-                        فردا
-                    </SectionTitle>
+                    <SectionRow>
+                        <SectionTitle style={{ margin: 0 }}>
+                            <Calendar size={16} />
+                            فردا
+                        </SectionTitle>
+                        {tmrwReminders.some(r => !r.completed) && (
+                            <GroupWaterButton onClick={() => handleWaterGroup(tmrwReminders.filter(r => !r.completed).map(r => r.id))}>
+                                <Check size={12} />
+                                همه را آب بده
+                            </GroupWaterButton>
+                        )}
+                    </SectionRow>
                     {tmrwReminders.map(item => (
                         <ReminderCard key={item.id} $completed={item.completed}>
                             <PlantImage src={item.image.startsWith('http') ? item.image : `http://130.185.76.46:4380${item.image}`} />
