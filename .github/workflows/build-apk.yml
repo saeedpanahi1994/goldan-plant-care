@@ -57,7 +57,7 @@ jobs:
         cd frontend/android
         chmod +x gradlew
 
-    - name: Build Debug APK
+    - name: Build Release APK
       run: |
         chmod +x ./build_apk_fresh.sh
         ./build_apk_fresh.sh
@@ -66,6 +66,6 @@ jobs:
       uses: actions/upload-artifact@v4
       if: success()
       with:
-        name: goldan-debug-apk
-        path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+        name: goldan-release-apk
+        path: frontend/android/app/build/outputs/apk/release/app-release.apk
         retention-days: 30

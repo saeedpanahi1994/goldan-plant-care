@@ -23,4 +23,20 @@ npx cap sync android
 # Build APK
 cd android
 chmod +x gradlew
-./gradlew clean assembleDebug --no-daemon
+
+# Create keystore if doesn't exist
+if [ ! -f "app/goldan-release-key.jks" ]; then
+    echo "Creating release keystore..."
+    keytool -genkeypair -v -keystore app/goldan-release-key.jks \
+        -alias goldan-key -keyalg RSA -keysize 2048 -validity 10000 \
+        -storepass goldan123456 -keypass goldan123456 \
+        -dname "CN=Goldan, OU=Plant Care, O=Goldan, L=Tehran, ST=Tehran, C=IR"
+fi
+
+# Set environment variables for signing
+export KEYSTORE_FILE=goldan-release-key.jks
+export KEYSTORE_PASSWORD=goldan123456
+export KEY_ALIAS=goldan-key
+export KEY_PASSWORD=goldan123456
+
+./gradlew clean assembleRelease --no-daemon
