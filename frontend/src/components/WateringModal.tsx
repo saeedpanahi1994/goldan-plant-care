@@ -72,6 +72,7 @@ const ModalContent = styled.div<{ $closing: boolean }>`
 
 const Header = styled.div`
   padding: 20px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
   display: flex;
   justify-content: space-between;
   align-items: center;

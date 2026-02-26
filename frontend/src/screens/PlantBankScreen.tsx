@@ -41,7 +41,7 @@ const ScreenContainer = styled.div`
 const HeaderSection = styled.div`
   background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 50%, #43A047 100%);
   padding: 20px;
-  padding-top: calc(env(safe-area-inset-top, 20px) + 20px);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
   position: sticky;
   top: 0;
   z-index: 100;

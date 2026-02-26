@@ -40,6 +40,7 @@ const ScreenContainer = styled.div`
 const Header = styled.header`
   background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 50%, #43A047 100%);
   padding: 10px 16px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
   display: flex;
   align-items: center;
   gap: 12px;

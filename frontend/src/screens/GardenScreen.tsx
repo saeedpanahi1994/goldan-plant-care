@@ -133,7 +133,7 @@ const SectionTitle = styled.h2`
 
 const FloatingAddButton = styled.button`
   position: fixed;
-  bottom: 100px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
   left: 20px;
   background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%);
   border: none;
