@@ -625,11 +625,14 @@ const findPlantInDatabase = async (scientificName: string, nameFa?: string): Pro
     if (plant.extra_images && Array.isArray(plant.extra_images)) {
       plant.extra_images.forEach((img: string) => {
         if (img) {
-          // تبدیل مسیر /storage/plant/ به /uploads/identified/ برای نمایش فوری
-          const displayUrl = img.replace('/storage/plant/', '/uploads/identified/');
-          additionalImages.push(displayUrl);
+          // مسیر /storage/plant/ مستقیماً توسط Express سرو می‌شود
+          additionalImages.push(img);
         }
       });
+    }
+    // اگر main_image_url هست و در لیست تصاویر اضافی نیست، اضافه کن
+    if (plant.main_image_url && !additionalImages.includes(plant.main_image_url)) {
+      additionalImages.unshift(plant.main_image_url);
     }
 
     // تبدیل مقادیر انگلیسی دیتابیس به متن کوتاه فارسی برای نمایش در قسمت "نیازها"

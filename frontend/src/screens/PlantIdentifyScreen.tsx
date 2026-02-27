@@ -6,6 +6,7 @@ import { identifyPlantFromFile, identifyPlantFromBase64, identifyDiseaseFromFile
 import { Camera as CapCamera, CameraResultType, CameraSource } from '@capacitor/camera';
 import HeaderComponent from '../components/Header';
 import QuotaExhaustedModal from '../components/QuotaExhaustedModal';
+import defaultPlantImage from '../assets/default-plant.svg';
 import axios from 'axios';
 
 const API_BASE_URL = 'http://130.185.76.46:4380';
@@ -906,11 +907,19 @@ const PlantIdentifyScreen: React.FC = () => {
   // دریافت همه تصاویر (تصویر کاربر + تصاویر اضافی)
   const getAllImages = () => {
     if (!result) return [];
-    const images = [];
+    const images: string[] = [];
+    // تصویر کاربر
     if (selectedImage) images.push(selectedImage);
+    // تصویر ویکی‌پدیا
+    if (result.wikipediaImageUrl) {
+      const wikiUrl = getFullImageUrl(result.wikipediaImageUrl);
+      if (!images.includes(wikiUrl)) images.push(wikiUrl);
+    }
+    // تصاویر اضافی از دیتابیس
     if (result.additionalImages) {
       result.additionalImages.forEach(img => {
-        images.push(getFullImageUrl(img));
+        const fullUrl = getFullImageUrl(img);
+        if (!images.includes(fullUrl)) images.push(fullUrl);
       });
     }
     return images;
@@ -1299,12 +1308,16 @@ const PlantIdentifyScreen: React.FC = () => {
           <ResultContainer>
             <PlantCard>
               <PlantImageContainer>
-                {getAllImages().length > 0 && (
-                  <PlantImage 
-                    src={getAllImages()[activeImageIndex] || selectedImage || ''} 
-                    alt={result.name} 
-                  />
-                )}
+                <PlantImage 
+                  src={getAllImages()[activeImageIndex] || selectedImage || defaultPlantImage} 
+                  alt={result.name}
+                  onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                    const target = e.currentTarget;
+                    if (target.src !== defaultPlantImage) {
+                      target.src = defaultPlantImage;
+                    }
+                  }}
+                />
                 <ConfidenceBadge $high={result.confidence >= 0.7}>
                   {result.confidence >= 0.7 ? <CheckCircle /> : <AlertCircle />}
                   <span>{toPersianDigits(Math.round(result.confidence * 100))}% اطمینان</span>
@@ -1324,6 +1337,12 @@ const PlantIdentifyScreen: React.FC = () => {
                       alt={`${result.name} ${index + 1}`}
                       $isActive={activeImageIndex === index}
                       onClick={() => setActiveImageIndex(index)}
+                      onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                        const target = e.currentTarget;
+                        if (target.src !== defaultPlantImage) {
+                          target.src = defaultPlantImage;
+                        }
+                      }}
                     />
                   ))}
                 </ImageGallery>
