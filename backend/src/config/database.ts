@@ -10,10 +10,13 @@ const pool = new Pool({
   database: process.env.DB_NAME || 'gooldoon',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '12345678',
-  max: 10, // Maximum connections in pool (کاهش یافت)
+  max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // افزایش timeout
-  allowExitOnIdle: false, // جلوگیری از خاموش شدن pool
+  connectionTimeoutMillis: 10000,
+  allowExitOnIdle: false,
+  // Keep-alive برای جلوگیری از قطع اتصال توسط سرور
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 });
 
 // Export pool for health checks
@@ -24,44 +27,68 @@ pool.on('connect', () => {
   console.log('📦 اتصال به دیتابیس PostgreSQL برقرار شد');
 });
 
+// هندل خطای pool بدون کرش کردن اپ
 pool.on('error', (err) => {
-  console.error('❌ خطای دیتابیس:', err.message);
+  console.error('❌ خطای غیرمنتظره دیتابیس:', err.message);
+  console.error('🔄 Pool به صورت خودکار اتصال جدید ایجاد می‌کند...');
+  // فقط لاگ بزن — pool خودش client خراب رو حذف و جایگزین می‌کنه
 });
 
-// Query helper function
+// Query helper function with auto-retry
 export const query = async (text: string, params?: any[]): Promise<QueryResult> => {
-  const start = Date.now();
-  let client;
+  const maxRetries = 2;
   
-  try {
-    client = await pool.connect();
-    const result = await client.query(text, params);
-    const duration = Date.now() - start;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const start = Date.now();
+    let client;
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔍 Query executed in ${duration}ms`);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error('❌ Query error:', error);
-    
-    // Log additional info for debugging
-    const dbError = error as any;
-    if (dbError.code === 'ECONNREFUSED') {
-      console.error('🔌 Database connection refused - is PostgreSQL running?');
-    } else if (dbError.code === 'ENOTFOUND') {
-      console.error('🔍 Database host not found');
-    } else if (dbError.code === 'ETIMEDOUT') {
-      console.error('⏰ Database connection timed out');
-    }
-    
-    throw error;
-  } finally {
-    if (client) {
-      client.release();
+    try {
+      client = await pool.connect();
+      const result = await client.query(text, params);
+      const duration = Date.now() - start;
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔍 Query executed in ${duration}ms`);
+      }
+      
+      return result;
+    } catch (error) {
+      const dbError = error as any;
+      const isConnectionError = 
+        dbError.code === 'ECONNREFUSED' ||
+        dbError.code === 'ENOTFOUND' ||
+        dbError.code === 'ETIMEDOUT' ||
+        dbError.code === 'ECONNRESET' ||
+        dbError.code === '57P01' || // admin shutdown
+        dbError.message?.includes('Connection terminated') ||
+        dbError.message?.includes('connection reset');
+      
+      if (isConnectionError && attempt < maxRetries) {
+        console.warn(`⚠️ اتصال دیتابیس قطع شد (تلاش ${attempt}/${maxRetries})، تلاش مجدد...`);
+        // کمی صبر قبل از retry
+        await new Promise(resolve => setTimeout(resolve, 500));
+        continue;
+      }
+      
+      console.error('❌ Query error:', error);
+      if (dbError.code === 'ECONNREFUSED') {
+        console.error('🔌 Database connection refused - is PostgreSQL running?');
+      } else if (dbError.code === 'ENOTFOUND') {
+        console.error('🔍 Database host not found');
+      } else if (dbError.code === 'ETIMEDOUT') {
+        console.error('⏰ Database connection timed out');
+      }
+      
+      throw error;
+    } finally {
+      if (client) {
+        client.release();
+      }
     }
   }
+  
+  // TypeScript safety — should never reach here
+  throw new Error('Unexpected: query retry loop exhausted');
 };
 
 // Get a client for transactions
