@@ -57,10 +57,12 @@ export const identifyPlantFromBase64 = async (
   mode: 'normal' | 'pro' = 'normal'
 ): Promise<ApiResponse<PlantIdentificationResult>> => {
   try {
+    const token = localStorage.getItem('authToken');
     const response = await fetch(`${API_BASE_URL}/api/diagnosis/identify-base64`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         image: base64Image,
@@ -86,12 +88,16 @@ export const identifyPlantFromFile = async (
   mode: 'normal' | 'pro' = 'normal'
 ): Promise<ApiResponse<PlantIdentificationResult>> => {
   try {
+    const token = localStorage.getItem('authToken');
     const formData = new FormData();
     formData.append('image', file);
     formData.append('mode', mode);
 
     const response = await fetch(`${API_BASE_URL}/api/diagnosis/identify`, {
       method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
       body: formData,
     });
 
@@ -142,10 +148,12 @@ export const identifyDiseaseFromBase64 = async (
   mimeType: string = 'image/jpeg'
 ): Promise<ApiResponse<PlantIdentificationResult>> => {
   try {
+    const token = localStorage.getItem('authToken');
     const response = await fetch(`${API_BASE_URL}/api/diagnosis/disease-base64`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         image: base64Image,
@@ -169,11 +177,15 @@ export const identifyDiseaseFromFile = async (
   file: File
 ): Promise<ApiResponse<PlantIdentificationResult>> => {
   try {
+    const token = localStorage.getItem('authToken');
     const formData = new FormData();
     formData.append('image', file);
 
     const response = await fetch(`${API_BASE_URL}/api/diagnosis/disease`, {
       method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
       body: formData,
     });
 
