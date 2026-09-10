@@ -18,8 +18,8 @@ const ScreenContainer = styled.div`
   font-family: 'Vazirmatn', sans-serif;
 `;
 
-const API_URL = 'http://130.185.76.46:4380/api';
-const SERVER_URL = 'http://130.185.76.46:4380';
+const API_URL = 'http://188.212.99.240:4380/api';
+const SERVER_URL = 'http://188.212.99.240:4380';
 
 const getFullImageUrl = (imagePath: string | null | undefined): string => {
   if (!imagePath) return 'https://via.placeholder.com/400x400?text=گیاه';

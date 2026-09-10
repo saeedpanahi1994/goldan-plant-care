@@ -4,7 +4,7 @@ import { X, Droplets, Check, Calendar, Clock } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = 'http://130.185.76.46:4380/api';
+const API_URL = 'http://188.212.99.240:4380/api';
 const COMPLETED_STORAGE_KEY = 'wateringCompletedMap';
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -466,7 +466,7 @@ const WateringModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
                     </SectionRow>
                     {pastReminders.map(item => (
                         <ReminderCard key={item.id} $completed={item.completed}>
-                            <PlantImage src={item.image.startsWith('http') ? item.image : `http://130.185.76.46:4380${item.image}`} />
+                            <PlantImage src={item.image.startsWith('http') ? item.image : `http://188.212.99.240:4380${item.image}`} />
                             <PlantInfo>
                                 <PlantName $completed={item.completed}>{item.name}</PlantName>
                                 <ReminderDetail $color={item.completed ? '#9e9e9e' : "#ef5350"}>
@@ -502,7 +502,7 @@ const WateringModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
                     </SectionRow>
                     {todayReminders.map(item => (
                         <ReminderCard key={item.id} $completed={item.completed}>
-                            <PlantImage src={item.image.startsWith('http') ? item.image : `http://130.185.76.46:4380${item.image}`} />
+                            <PlantImage src={item.image.startsWith('http') ? item.image : `http://188.212.99.240:4380${item.image}`} />
                             <PlantInfo>
                                 <PlantName $completed={item.completed}>{item.name}</PlantName>
                                 <ReminderDetail $color={item.completed ? '#9e9e9e' : "#fb8c00"}>
@@ -538,7 +538,7 @@ const WateringModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
                     </SectionRow>
                     {tmrwReminders.map(item => (
                         <ReminderCard key={item.id} $completed={item.completed}>
-                            <PlantImage src={item.image.startsWith('http') ? item.image : `http://130.185.76.46:4380${item.image}`} />
+                            <PlantImage src={item.image.startsWith('http') ? item.image : `http://188.212.99.240:4380${item.image}`} />
                             <PlantInfo>
                                 <PlantName $completed={item.completed}>{item.name}</PlantName>
                                 <ReminderDetail $color={item.completed ? '#9e9e9e' : "#4caf50"}>

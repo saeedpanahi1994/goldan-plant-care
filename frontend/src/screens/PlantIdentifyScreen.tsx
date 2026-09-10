@@ -9,7 +9,7 @@ import QuotaExhaustedModal from '../components/QuotaExhaustedModal';
 import defaultPlantImage from '../assets/default-plant.svg';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://130.185.76.46:4380';
+const API_BASE_URL = 'http://188.212.99.240:4380';
 
 // Animations
 const fadeIn = keyframes`

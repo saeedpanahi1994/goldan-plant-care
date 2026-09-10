@@ -12,7 +12,7 @@ async function fixUrls() {
     // Update plants main_image_url - change from planta.vsrv.ir back to our server
     const result1 = await pool.query(`
       UPDATE plants 
-      SET main_image_url = REPLACE(main_image_url, 'https://planta.vsrv.ir/storage/plant/', 'http://130.185.76.46:4380/storage/plant/')
+      SET main_image_url = REPLACE(main_image_url, 'https://planta.vsrv.ir/storage/plant/', 'http://188.212.99.240:4380/storage/plant/')
       WHERE main_image_url LIKE 'https://planta.vsrv.ir%'
     `);
     console.log('Plants updated:', result1.rowCount);
@@ -20,7 +20,7 @@ async function fixUrls() {
     // Update plant_images
     const result2 = await pool.query(`
       UPDATE plant_images 
-      SET image_url = REPLACE(image_url, 'https://planta.vsrv.ir/storage/plant/', 'http://130.185.76.46:4380/storage/plant/')
+      SET image_url = REPLACE(image_url, 'https://planta.vsrv.ir/storage/plant/', 'http://188.212.99.240:4380/storage/plant/')
       WHERE image_url LIKE 'https://planta.vsrv.ir%'
     `);
     console.log('Plant images updated:', result2.rowCount);

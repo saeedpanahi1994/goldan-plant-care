@@ -3,7 +3,7 @@ import styled, { keyframes } from 'styled-components';
 import { X, Send, Bot, User, Sparkles, MessageCircle } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = 'http://130.185.76.46:4380/api';
+const API_URL = 'http://188.212.99.240:4380/api';
 
 interface Message {
   id: string;

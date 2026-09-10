@@ -6,8 +6,8 @@ import axios from 'axios';
 import PlantChatModal from '../components/PlantChatModal';
 import defaultPlantImage from '../assets/default-plant.svg';
 
-const API_URL = 'http://130.185.76.46:4380/api';
-const SERVER_URL = 'http://130.185.76.46:4380';
+const API_URL = 'http://188.212.99.240:4380/api';
+const SERVER_URL = 'http://188.212.99.240:4380';
 
 // Helper function to get full image URL
 const getFullImageUrl = (imagePath: string | null | undefined): string => {

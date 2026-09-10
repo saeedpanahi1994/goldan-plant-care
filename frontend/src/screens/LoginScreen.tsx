@@ -371,7 +371,7 @@ const LoginScreen: React.FC = () => {
 
     try {
       // ارسال به سرور
-      const response = await fetch('http://130.185.76.46:4380/api/auth/send-otp', {
+      const response = await fetch('http://188.212.99.240:4380/api/auth/send-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,5 +1,5 @@
 // آدرس سرور بکند
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://130.185.76.46:4380';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://188.212.99.240:4380';
 
 // اینترفیس برای نتیجه شناسایی گیاه
 export interface PlantIdentificationResult {

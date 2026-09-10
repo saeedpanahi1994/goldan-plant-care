@@ -16,13 +16,13 @@ function transformImageUrl(originalUrl) {
   if (!originalUrl) return null;
   
   // مثال: https://planta.vsrv.ir/storage/plant/August2022/hbcbD19uCTbqBcTqmCQD.jpg
-  // به: http://130.185.76.46:4380/storage/plant/hbcbD19uCTbqBcTqmCQD.jpg
+  // به: http://188.212.99.240:4380/storage/plant/hbcbD19uCTbqBcTqmCQD.jpg
   
   const urlPattern = /https:\/\/planta\.vsrv\.ir\/storage\/plant\/[^\/]+\/(.+)/;
   const match = originalUrl.match(urlPattern);
   
   if (match && match[1]) {
-    return `http://130.185.76.46:4380/storage/plant/${match[1]}`;
+    return `http://188.212.99.240:4380/storage/plant/${match[1]}`;
   }
   
   return originalUrl;

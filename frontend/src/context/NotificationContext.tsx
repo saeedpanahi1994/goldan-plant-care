@@ -13,7 +13,7 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-const API_URL = 'http://130.185.76.46:4380/api';
+const API_URL = 'http://188.212.99.240:4380/api';
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 const toStartOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());

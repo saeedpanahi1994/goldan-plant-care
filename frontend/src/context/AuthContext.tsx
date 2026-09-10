@@ -37,7 +37,7 @@ const TOKEN_KEY = 'authToken';
 const USER_KEY = 'authUser';
 
 // API base URL
-const API_BASE = 'http://130.185.76.46:4380/api';
+const API_BASE = 'http://188.212.99.240:4380/api';
 
 // Provider component
 interface AuthProviderProps {

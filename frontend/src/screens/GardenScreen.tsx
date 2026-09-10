@@ -10,8 +10,8 @@ import ConfirmModal from '../components/ConfirmModal';
 import Header from '../components/Header';
 import offlineGardenService, { CachedPlant } from '../services/offlineGardenService';
 
-const API_URL = 'http://130.185.76.46:4380/api';
-const SERVER_URL = 'http://130.185.76.46:4380';
+const API_URL = 'http://188.212.99.240:4380/api';
+const SERVER_URL = 'http://188.212.99.240:4380';
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 const toStartOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());

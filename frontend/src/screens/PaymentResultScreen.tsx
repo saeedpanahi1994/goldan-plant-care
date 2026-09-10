@@ -4,7 +4,7 @@ import { CheckCircle, XCircle, ArrowRight, RefreshCw, Home } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 
-const API_URL = 'http://130.185.76.46:4380/api';
+const API_URL = 'http://188.212.99.240:4380/api';
 
 // ===================================
 // انیمیشن‌ها

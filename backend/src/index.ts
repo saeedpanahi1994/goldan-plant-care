@@ -140,7 +140,7 @@ const startServer = async () => {
       console.log('═══════════════════════════════════════════');
       console.log(`🌱 سرور گل دان در پورت ${PORT} اجرا شد`);
       console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-      console.log(`🔗 API Base URL: http://130.185.76.46:${PORT}`);
+      console.log(`🔗 API Base URL: http://188.212.99.240:${PORT}`);
       console.log('═══════════════════════════════════════════');
       console.log('');
     });
